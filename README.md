@@ -42,13 +42,13 @@ cmake -GNinja -B build -DCMAKE_BUILD_TYPE=[Debug/Release]
 cmake --build build
 ```
 
-##### If you want to simply run, use
+#### If you want to simply run, use
 
 ```bash
 cmake --build build --target qemu
 ```
 
-##### Or if you want to debug via GDB
+#### Or if you want to debug via GDB
 
 **first run:**
 ```bash

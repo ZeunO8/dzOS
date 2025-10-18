@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(USRSPC ${CMAKE_CURRENT_LIST_DIR})
-set(INC ${USRSPC}/include)
+set(USRSPC ${CMAKE_BINARY_DIR})
+set_INC ${USRSPC}/include)
 set(SRC ${USRSPC}/src)
 set(DZOS_XXD_DIR ${CMAKE_SOURCE_DIR}/xxd)
 file(MAKE_DIRECTORY ${DZOS_XXD_DIR})
@@ -35,7 +35,7 @@ macro(add_userspace_prog NAME)
         set(_FS_PATH /${NAME})
     endif()
 
-    set(_OUT_OBJ ${CMAKE_CURRENT_LIST_DIR}/userspace/${NAME}.o)
+    set(_OUT_OBJ ${CMAKE_BINARY_DIR}/userspace_${NAME}.o)
     set(_BIN ${CMAKE_BINARY_DIR}/${NAME}.bin)
     set(_XXD_OUT ${DZOS_XXD_DIR}/${NAME}.c)
 

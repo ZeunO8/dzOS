@@ -132,7 +132,7 @@ void kmain(void)
     
     init_term();
 
-    set_output_mode(OUTPUT_FLANTERM);
+    // set_output_mode(OUTPUT_FLANTERM);
 
     gdt_init();
 

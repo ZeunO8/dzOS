@@ -131,6 +131,7 @@ uint64_t proc_exec(const char *path, const char *args[], struct fs_inode *workin
     // Open the executable
     proc_inode = fs_open(path, working_directory, 0);
     if (!proc_inode) goto bad;
+    
     if (fs_read(proc_inode, (char *)&elf, sizeof(elf), 0) != sizeof(elf)) goto bad;
     if (elf.magic != ELF_MAGIC) goto bad;
 
@@ -146,24 +147,41 @@ uint64_t proc_exec(const char *path, const char *args[], struct fs_inode *workin
 
     // Load program segments
     for (uint64_t i = 0, off = elf.phoff; i < elf.phnum; i++, off += sizeof(ph)) {
-        if (fs_read(proc_inode, (char *)&ph, sizeof(ph), off) != sizeof(ph)) goto bad;
-        if (ph.type != ELF_PROG_LOAD) continue;
-        if (ph.memsz < ph.filesz) goto bad;
+        if (fs_read(proc_inode, (char *)&ph, sizeof(ph), off) != sizeof(ph)) {
+            goto bad;
+        }
+
+        if (ph.type != ELF_PROG_LOAD) {
+            continue;
+        }
+        if (ph.memsz < ph.filesz) {
+            goto bad;
+        }
 
         uint64_t mapped_va = ph.vaddr + load_bias;
         uint64_t map_start = mapped_va & ~(PAGE_SIZE - 1);
         uint64_t map_offset = mapped_va - map_start;
         uint64_t alloc_size = PAGE_ROUND_UP(map_offset + ph.memsz);
 
-        if (map_start < USERSPACE_VA_MIN || (map_start + alloc_size) > USERSPACE_VA_MAX) goto bad;
-        if (vmm_allocate(proc->pagetable, map_start, alloc_size, flags2perm(ph.flags), false) == -1) goto bad;
+        if (map_start < USERSPACE_VA_MIN || (map_start + alloc_size) > USERSPACE_VA_MAX) {
+            goto bad;
+        }
 
-        if (ph.filesz > 0 &&
-            load_segment(proc->pagetable, proc_inode, map_start + map_offset, ph.off, ph.filesz) < 0)
+        if (vmm_allocate(proc->pagetable, map_start, alloc_size, flags2perm(ph.flags), false) == -1) {
             goto bad;
-        if (ph.memsz > ph.filesz &&
-            vmm_zero(proc->pagetable, map_start + map_offset + ph.filesz, ph.memsz - ph.filesz) < 0)
-            goto bad;
+        }
+
+        if (ph.filesz > 0) {
+            if (load_segment(proc->pagetable, proc_inode, map_start + map_offset, ph.off, ph.filesz) < 0) {
+                goto bad;
+            }
+        }
+        
+        if (ph.memsz > ph.filesz) {
+            if (vmm_zero(proc->pagetable, map_start + map_offset + ph.filesz, ph.memsz - ph.filesz) < 0) {
+                goto bad;
+            }
+        }
 
         proc->initial_data_segment = MAX_SAFE(proc->initial_data_segment, map_start + alloc_size);
     }

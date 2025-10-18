@@ -1,0 +1,5 @@
+.vscode
+build
+build-windows
+serial.log
+xxd

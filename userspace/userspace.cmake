@@ -1,23 +1,8 @@
-cmake_minimum_required(VERSION 3.20)
-
 set(USRSPC ${CMAKE_CURRENT_LIST_DIR})
 set(INC ${USRSPC}/include)
-set(SRC ${USRSPC}/src)
-set(DZOS_XXD_DIR ${CMAKE_SOURCE_DIR}/xxd)
-file(MAKE_DIRECTORY ${DZOS_XXD_DIR})
+set(SRC ${USRSPC}/src/)
 
-if(NOT DEFINED USERSPACE_LINKER_SCRIPT)
-    set(USERSPACE_LINKER_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/link.ld)
-endif()
-
-if(NOT DEFINED USERSPACE_EXTRA_OBJS)
-    set(USERSPACE_EXTRA_OBJS "")
-endif()
-
-find_program(LD_LLD_EXE NAMES ld.lld.exe ld.lld HINTS "C:/Program Files/LLVM/bin" "${LLVM_TOOLS_BINARY_DIR}")
-if(NOT LD_LLD_EXE)
-    message(FATAL_ERROR "ld.lld not found — ensure LLVM tools are installed and on PATH.")
-endif()
+file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/xxd)
 
 macro(add_userspace_prog NAME)
     set(options "")
@@ -25,54 +10,53 @@ macro(add_userspace_prog NAME)
     set(multiValueArgs "SOURCES")
     cmake_parse_arguments(SPC "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-    if(NOT SPC_SOURCES)
-        message(FATAL_ERROR "add_userspace_prog(${NAME}): no SOURCES provided")
-    endif()
+    add_executable(${NAME} ${SPC_SOURCES})
+
+    target_compile_options(${NAME} PRIVATE
+        --target=x86_64-unknown-elf
+        -fno-stack-protector -fno-pic
+        -fno-pie -mno-red-zone -nostdlib# -nostartfiles
+    )
+
+    set_optimizations(${NAME})
+
+    target_link_options(${NAME} PRIVATE
+        -static -nostdlib# -nostartfiles
+        # -Wl,--build-id=none
+        # -Wl,-T${CMAKE_SOURCE_DIR}/link.ld
+    )
+
+    target_link_libraries(${NAME} PRIVATE c)
+    target_include_directories(${NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR} ${LIBC_INCLUDE_DIR} ${INC})
+    target_link_options(${NAME} PRIVATE
+        -Wl,--whole-archive $<TARGET_FILE:c> -Wl,--no-whole-archive
+    )
 
     if(DEFINED SPC_FS_PATH)
-        set(_FS_PATH ${SPC_FS_PATH})
+        set(FS_PATH ${SPC_FS_PATH})
     else()
-        set(_FS_PATH /${NAME})
+        set(FS_PATH /${NAME})
     endif()
 
-    set(_OUT_OBJ ${CMAKE_BINARY_DIR}/userspace_${NAME}.o)
-    set(_BIN ${CMAKE_BINARY_DIR}/${NAME}.bin)
-    set(_XXD_OUT ${DZOS_XXD_DIR}/${NAME}.c)
+    # Output binary and generated C file
+    set(BIN_PATH $<TARGET_FILE:${NAME}>)
+    set(XXD_OUT ${CMAKE_SOURCE_DIR}/xxd/${NAME}.c)
 
-    add_custom_command(
-        OUTPUT ${_BIN}
-        COMMAND ${CMAKE_C_COMPILER} --target=x86_64-unknown-elf -ffreestanding -fno-stack-protector -fno-pic -fno-pie -mno-red-zone -O2 -g -c ${SPC_SOURCES} -o ${_OUT_OBJ}
-        COMMAND ${LD_LLD_EXE} -flavor gnu -T ${USERSPACE_LINKER_SCRIPT} -o ${_BIN} ${_OUT_OBJ} ${USERSPACE_EXTRA_OBJS} --static -nostdlib
-        DEPENDS ${SPC_SOURCES} ${USERSPACE_LINKER_SCRIPT}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        COMMENT "[userspace] Building ELF binary ${NAME}.bin using ld.lld.exe (Windows-safe)"
-        VERBATIM
-    )
+    list(APPEND USERSPACE_PROGRAM_BUILD_PATHS ${BIN_PATH})
+    list(APPEND USERSPACE_PROGRAM_FS_PATHS ${FS_PATH})
+    list(APPEND USERSPACE_DEPENDENCIES ${NAME})
 
-    add_custom_command(
-        OUTPUT ${_XXD_OUT}
+    add_custom_command(TARGET ${NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E echo "Generating xxd .c for ${NAME}"
-        COMMAND xxd -n userspace_prog_${NAME} -i ${_BIN} > ${_XXD_OUT}
-        COMMAND ${CMAKE_COMMAND} -DOUT=${_XXD_OUT} -DNAME=${NAME} -DFS_PATH=${_FS_PATH} -P ${USRSPC}/append_file.cmake
-        DEPENDS ${_BIN} ${USRSPC}/append_file.cmake
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        COMMENT "[userspace] Create xxd .c file and append fs_path (${_FS_PATH})"
-        VERBATIM
+        COMMAND xxd -n "userspace_prog_${NAME}" -i ${BIN_PATH} > ${XXD_OUT}
+        COMMAND ${CMAKE_COMMAND} -DOUT=${XXD_OUT} -DNAME=${NAME} -DFS_PATH=${FS_PATH} -P ${USRSPC}/append_file.cmake
+        COMMENT "Create xxd .c file and append fs_path"
     )
 
-    add_custom_target(${NAME}_bin ALL DEPENDS ${_BIN})
-    add_custom_target(${NAME}_xxd ALL DEPENDS ${_XXD_OUT})
-
-    list(APPEND USERSPACE_PROGRAM_BUILD_PATHS ${_BIN})
-    list(APPEND USERSPACE_PROGRAM_FS_PATHS ${_FS_PATH})
-    list(APPEND USERSPACE_DEPENDENCIES ${NAME}_xxd)
-
-    set(USERSPACE_PROGRAM_BUILD_PATHS ${USERSPACE_PROGRAM_BUILD_PATHS})
-    set(USERSPACE_PROGRAM_FS_PATHS ${USERSPACE_PROGRAM_FS_PATHS})
-    set(USERSPACE_DEPENDENCIES ${USERSPACE_DEPENDENCIES})
+    unset(FS_PATH)
 endmacro()
 
-add_userspace_prog(init SOURCES ${SRC}/init.c FS_PATH /init)
+add_userspace_prog(init SOURCES ${SRC}/init.c)
 
 unset(SRC)
 unset(INC)

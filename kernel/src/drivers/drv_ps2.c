@@ -137,7 +137,7 @@ static void emit_utf8(uint32_t codepoint) {
         len = 4;
     }
     for (int i = 0; i < len; i++)
-        term_putc(buf[i]);
+        kputc(buf[i]);
 }
 
 static const uint32_t us_layout[128][4] = {

@@ -12,7 +12,8 @@
 #include "mem/vmm.h"
 #include "userspace/proc.h"
 
-#define ELF_MAGIC 0x464C457FU // "\x7FELF" in little endian
+// "\x7FELF" in little endian
+#define ELF_MAGIC 0x464C457FU
 
 // File header
 struct __attribute__((packed)) ElfHeader
@@ -33,7 +34,7 @@ struct __attribute__((packed)) ElfHeader
     uint16_t shnum;
     uint16_t shstrndx;
 };
-
+_Static_assert(sizeof(struct ElfHeader) == 64, "ElfHeader must be 64");
 
 struct __attribute__((packed)) ProgramHeader
 {
@@ -99,12 +100,14 @@ static int load_segment(pagetable_t pagetable, struct fs_inode *ip, uint64_t va,
 
 #define USER_DEFAULT_LOAD_BASE 0x00400000ULL
 
+// Executable file
 #ifndef ELF_ET_EXEC
-#define ELF_ET_EXEC 2 // Executable file
+#define ELF_ET_EXEC 2
 #endif
 
+// Shared object file (Position Independent Executable)
 #ifndef ELF_ET_DYN
-#define ELF_ET_DYN 3 // Shared object file (Position Independent Executable)
+#define ELF_ET_DYN 3
 #endif
 
 uint64_t sys_exec(const char* path, const char* args[])

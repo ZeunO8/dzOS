@@ -353,14 +353,16 @@ int vmm_allocate(pagetable_t pagetable, uint64_t va, uint64_t size,
         const uint64_t current_va = va + i * PAGE_SIZE;
         void *frame;
         if (clear)
-            frame = kcalloc();
+            frame = kcalloc();  // This already zeros
         else
-            frame = kalloc();
+            frame = kalloc();   // This fills with 0x02
         if (frame == NULL)
             return -1;
         pte_t *pte = walk(pagetable, current_va, true, false);
-        if (pte == NULL)
-            return -1; // OOM
+        if (pte == NULL) {
+            kfree(frame);
+            return -1;
+        }
         if (pte_is_present(*pte))
             panic("vmm_allocate: remap");
         
@@ -372,9 +374,6 @@ int vmm_allocate(pagetable_t pagetable, uint64_t va, uint64_t size,
             *pte |= PTE_XD;
         if (permissions.userspace)
             *pte |= PTE_U;
-        
-        // Clear the allocated page
-        memset(frame, 0, PAGE_SIZE);
     }
     return 0;
 }
@@ -428,7 +427,7 @@ void *vmm_io_memmap(uint64_t pa, uint64_t size)
 pagetable_t vmm_user_pagetable_new()
 {
     // Allocate a pagetable to be our result
-    pagetable_t pagetable = (pagetable_t)kalloc();
+    pagetable_t pagetable = (pagetable_t)kcalloc();
     if (pagetable == NULL)
         return NULL;
     memset(pagetable, 0, PAGE_SIZE);
@@ -439,11 +438,11 @@ pagetable_t vmm_user_pagetable_new()
     
     // Create dedicated pages
     void *user_stack = NULL, *int_stack = NULL, *syscall_stack = NULL;
-    if ((user_stack = kalloc()) == NULL)
+    if ((user_stack = kcalloc()) == NULL)
         goto failed;
-    if ((int_stack = kalloc()) == NULL)
+    if ((int_stack = kcalloc()) == NULL)
         goto failed;
-    if ((syscall_stack = kalloc()) == NULL)
+    if ((syscall_stack = kcalloc()) == NULL)
         goto failed;
     
     // Map pages

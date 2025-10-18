@@ -15,9 +15,9 @@
 #define ELF_MAGIC 0x464C457FU // "\x7FELF" in little endian
 
 // File header
-struct ElfHeader
+struct __attribute__((packed)) ElfHeader
 {
-    uint32_t magic; // must equal ELF_MAGIC
+    uint32_t magic;
     uint8_t elf[12];
     uint16_t type;
     uint16_t machine;
@@ -34,8 +34,8 @@ struct ElfHeader
     uint16_t shstrndx;
 };
 
-// Program section header
-struct ProgramHeader
+
+struct __attribute__((packed)) ProgramHeader
 {
     uint32_t type;
     uint32_t flags;
@@ -46,6 +46,7 @@ struct ProgramHeader
     uint64_t memsz;
     uint64_t align;
 };
+_Static_assert(sizeof(struct ProgramHeader) == 56, "ProgramHeader must be 56 bytes");
 
 // Values for Proghdr type
 #define ELF_PROG_LOAD 1
@@ -97,8 +98,6 @@ static int load_segment(pagetable_t pagetable, struct fs_inode *ip, uint64_t va,
 }
 
 #define USER_DEFAULT_LOAD_BASE 0x00400000ULL
-#define MIN_USER_LOAD_BASE (USERSPACE_VA_MIN)
-#define MAX_USER_LOAD_BASE (USERSPACE_VA_MAX - (1ULL << 22))
 
 #ifndef ELF_ET_EXEC
 #define ELF_ET_EXEC 2 // Executable file

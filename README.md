@@ -7,7 +7,7 @@ It uses the Limine bootloader.
 ### Features
 
  - [x] Instruction support
-   - [x] RTC (Real-Time-Clock)
+   - [x] RTC (Real-Time-Clock) - Fast ASM PIT Calibrate
    - [x] FPU (Floating Point Unit)
    - [x] SSE
  - [x] GDT (Global Descriptor Table)
@@ -15,6 +15,7 @@ It uses the Limine bootloader.
  - [x] IOAPIC/LAPIC support
  - [x] Interrupts
  - [x] Virtual Memory mapping (4KB Page Size)
+ - [x] dynamic kernel memory allocation (`kmalloc`/`kfree`) that manages space efficiently
  - [x] ELF binary loader
  - [x] **Kernel**space + **User**space
  - [x] Device detection + Driver registration

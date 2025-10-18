@@ -14,7 +14,7 @@ It uses the Limine bootloader.
  - [x] IDT (Interrupt Descriptor Table)
  - [x] IOAPIC/LAPIC support
  - [x] Interrupts
- - [x] Virtual Memory mapping
+ - [x] Virtual Memory mapping (4KB Page Size)
  - [x] ELF binary loader
  - [x] **Kernel**space + **User**space
  - [x] Device detection + Driver registration

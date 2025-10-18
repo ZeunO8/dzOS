@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(USRSPC ${CMAKE_BINARY_DIR})
-set_INC ${USRSPC}/include)
+set(USRSPC ${CMAKE_CURRENT_LIST_DIR})
+set(INC ${USRSPC}/include)
 set(SRC ${USRSPC}/src)
 set(DZOS_XXD_DIR ${CMAKE_SOURCE_DIR}/xxd)
 file(MAKE_DIRECTORY ${DZOS_XXD_DIR})

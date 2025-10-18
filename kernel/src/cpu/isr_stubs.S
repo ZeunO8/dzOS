@@ -1,5 +1,4 @@
-# isr_stubs.S - Assembly interrupt stubs (Intel syntax)
-# Assemble with GNU AS with -masm=intel flag or .intel_syntax directive
+# isr_stubs.S
 
 .intel_syntax noprefix
 
@@ -71,3 +70,5 @@ ISR_NOERRCODE 44    # IRQ12 - Mouse
 # ISR_NOERRCODE 32    # IRQ0 - Timer
 # ISR_NOERRCODE 34    # IRQ2
 # etc.
+
+.section .note.GNU-stack

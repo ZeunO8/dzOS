@@ -1,72 +1,111 @@
 #include "hw_detect.h"
 #include "device_manager.h"
-#include <stdbool.h>
+#include "cpu/asm.h"
+#include "common/printf.h"
+#include "mem/kmalloc.h"
 
-// PCI config space access
-static inline uint32_t pci_read_config(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset) {
-    uint32_t address = (uint32_t)((bus << 16) | (dev << 11) | 
-                                  (func << 8) | (offset & 0xFC) | 0x80000000);
+static uint16_t pci_config_read_word(uint8_t bus, uint8_t slot, uint8_t func,
+                                     uint8_t offset)
+{
+    uint32_t lbus = (uint32_t)bus;
+    uint32_t lslot = (uint32_t)slot;
+    uint32_t lfunc = (uint32_t)func;
 
-    // Write to CONFIG_ADDRESS (0xCF8)
-    __asm__ volatile("outl %%eax, %%dx" :: "a"(address), "d"(0xCF8));
+    uint32_t address = (uint32_t)((lbus << 16) | (lslot << 11) | (lfunc << 8) |
+                                  (offset & 0xFC) | ((uint32_t)0x80000000));
 
-    // Read from CONFIG_DATA (0xCFC)
-    uint32_t data;
-    __asm__ volatile("inl %%dx, %%eax" : "=a"(data) : "d"(0xCFC));
-
-    return data;
+    bool interrupts_enabled = is_interrupts_enabled();
+    cli();
+    outl(0xCF8, address);
+    uint16_t result = (uint16_t)((inl(0xCFC) >> ((offset & 2) * 8)) & 0xFFFF);
+    if (interrupts_enabled)
+        sti();
+    return result;
 }
 
-static bool pci_device_exists(uint8_t bus, uint8_t dev, uint8_t func) {
-    uint32_t vendor_device = pci_read_config(bus, dev, func, 0);
-    return (vendor_device != 0xFFFFFFFF) && ((vendor_device & 0xFFFF) != 0xFFFF);
+static uint32_t pci_config_read_dword(uint8_t bus, uint8_t slot, uint8_t func,
+                                      uint8_t offset)
+{
+    uint32_t lbus = (uint32_t)bus;
+    uint32_t lslot = (uint32_t)slot;
+    uint32_t lfunc = (uint32_t)func;
+
+    uint32_t address = (uint32_t)((lbus << 16) | (lslot << 11) | (lfunc << 8) |
+                                  (offset & 0xFC) | ((uint32_t)0x80000000));
+
+    bool interrupts_enabled = is_interrupts_enabled();
+    cli();
+    outl(0xCF8, address);
+    uint32_t result = inl(0xCFC);
+    if (interrupts_enabled)
+        sti();
+    return result;
 }
 
 int hw_detect_pci_scan(void) {
+    ktprintf("[HW_DETECT] Scanning PCI bus...\n");
+    
     int found = 0;
     
-    for (uint16_t bus = 0; bus < 256; bus++) {
-        for (uint8_t dev = 0; dev < 32; dev++) {
-            for (uint8_t func = 0; func < 8; func++) {
-                if (!pci_device_exists(bus, dev, func)) {
-                    if (func == 0) break; // No device
-                    continue;
-                }
-                
-                uint32_t vendor_device = pci_read_config(bus, dev, func, 0);
-                uint32_t class_rev = pci_read_config(bus, dev, func, 0x08);
-                uint32_t header = pci_read_config(bus, dev, func, 0x0C);
-                
-                pci_device_info_t info = {
-                    .vendor_id = vendor_device & 0xFFFF,
-                    .device_id = (vendor_device >> 16) & 0xFFFF,
-                    .class_code = (class_rev >> 24) & 0xFF,
-                    .subclass = (class_rev >> 16) & 0xFF,
-                    .prog_if = (class_rev >> 8) & 0xFF,
-                    .bus = bus,
-                    .device = dev,
-                    .function = func,
-                };
-                
-                // Read BARs
-                for (int i = 0; i < 6; i++) {
-                    info.bar[i] = pci_read_config(bus, dev, func, 0x10 + (i * 4));
-                }
-                
-                // Read IRQ
-                uint32_t irq_line = pci_read_config(bus, dev, func, 0x3C);
-                info.irq = irq_line & 0xFF;
-                
-                device_register_from_pci(&info);
-                found++;
-                
-                // If not multifunction, skip other functions
-                if (func == 0 && !(header & 0x00800000)) {
-                    break;
-                }
-            }
+    // Scan bus 0 only for now (we can expand to all buses later)
+    for (uint8_t device = 0; device < 32; device++) {
+        uint16_t vendor = pci_config_read_word(0, device, 0, 0);
+        
+        // Check if device exists
+        if (vendor == 0xFFFF)
+            continue;
+        
+        // Read device info
+        uint16_t device_id = pci_config_read_word(0, device, 0, 2);
+        uint16_t class_subclass = pci_config_read_word(0, device, 0, 0xA);
+        uint8_t class_code = (class_subclass >> 8) & 0xFF;
+        uint8_t subclass = class_subclass & 0xFF;
+        uint8_t prog_if = (pci_config_read_word(0, device, 0, 0x8) >> 8) & 0xFF;
+        uint8_t irq = pci_config_read_word(0, device, 0, 0x3C) & 0xFF;
+        
+        // Read BARs
+        uint32_t bar0 = pci_config_read_dword(0, device, 0, 0x10);
+        uint32_t bar1 = pci_config_read_dword(0, device, 0, 0x14);
+        uint32_t bar2 = pci_config_read_dword(0, device, 0, 0x18);
+        uint32_t bar3 = pci_config_read_dword(0, device, 0, 0x1C);
+        uint32_t bar4 = pci_config_read_dword(0, device, 0, 0x20);
+        uint32_t bar5 = pci_config_read_dword(0, device, 0, 0x24);
+        
+        // Create device info structure
+        pci_device_info_t* info = kmalloc(sizeof(pci_device_info_t));
+        if (!info) continue;
+        
+        info->bus = 0;
+        info->device = device;
+        info->function = 0;
+        info->vendor_id = vendor;
+        info->device_id = device_id;
+        info->class_code = class_code;
+        info->subclass = subclass;
+        info->prog_if = prog_if;
+        info->irq = irq;
+        info->bar[0] = bar0;
+        info->bar[1] = bar1;
+        info->bar[2] = bar2;
+        info->bar[3] = bar3;
+        info->bar[4] = bar4;
+        info->bar[5] = bar5;
+        
+        // Special logging for NVMe
+        if (class_code == 0x01 && subclass == 0x08 && prog_if == 0x02) {
+            uint64_t nvme_bar = (((uint64_t)bar1 << 32) | (bar0 & 0xFFFFFFF0));
+            ktprintf("[HW_DETECT] Found NVMe controller at %p (vendor=0x%x device=0x%x)\n",
+                     nvme_bar, vendor, device_id);
+        } else {
+            ktprintf("[HW_DETECT] Found PCI device %u.%u (vendor=0x%x device=0x%x class=0x%02x/0x%02x/0x%02x)\n",
+                     0, device, vendor, device_id, class_code, subclass, prog_if);
         }
+        
+        device_register_from_pci(info);
+        kmfree(info);
+        found++;
     }
     
+    ktprintf("[HW_DETECT] Found %d PCI devices\n", found);
     return found;
 }

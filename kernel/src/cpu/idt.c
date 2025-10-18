@@ -1,3 +1,5 @@
+// idt.c
+#include "drivers/device_manager.h"
 #include "idt.h"
 #include "gdt.h"
 #include "traps.h"
@@ -60,19 +62,16 @@ void idt_load(void)
 extern void isr_stub_33(void);
 extern void isr_stub_44(void);
 
-void setup_input_interrupts(void)
-{
-    idt_set_gate(T_IRQ0 + IRQ_KEYBOARD, (uint64_t)isr_stub_33, 0, 0x8E);
-    idt_set_gate(T_IRQ0 + IRQ_MOUSE,    (uint64_t)isr_stub_44, 0, 0x8E);
-}
-
 void interrupt_dispatch(uint64_t vector)
 {
-    if (vector == T_IRQ0 + IRQ_KEYBOARD) {
-        keyboard_handler();
-    } else if (vector == T_IRQ0 + IRQ_MOUSE) {
-        mouse_handler();
+    uint8_t irq = vector - T_IRQ0;  // map vector to IRQ number
+    device_t* dev = device_find_by_irq(irq);
+
+    if (dev && dev->drv && dev->drv->ops.irq_handler) {
+        driver_irq(dev, irq);  // safe inline call helper
     } else {
-        lapic_send_eoi();
+        ktprintf("[INT] Unhandled IRQ %u (vector %llu)\n", irq, vector);
     }
+
+    lapic_send_eoi();
 }

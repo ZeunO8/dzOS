@@ -1,3 +1,4 @@
+// kernel.c - Updated for driver-based initialization
 #include "common/lib.h"
 #include "common/printf.h"
 #include "common/fb.h"
@@ -24,11 +25,9 @@
 #include <stdint.h>
 
 #include "drivers/device_manager.h"
-#include "drivers/hw_detect.h"
 
 __attribute__((used, section(".limine_requests"))) static volatile LIMINE_BASE_REVISION(3);
 
-// Get the mapping of the memory to allocate free space for programs
 __attribute__((
     used,
     section(".limine_requests"))
@@ -38,7 +37,6 @@ __attribute__((
         .revision = 0,
 };
 
-// Have a 1:1 map of physical memory on a high address
 __attribute__((
     used,
     section(".limine_requests")
@@ -48,7 +46,6 @@ __attribute__((
         .revision = 0,
 };
 
-// Get the physical address of kernel for trampoline page
 __attribute__((
     used,
     section(".limine_requests")
@@ -67,18 +64,33 @@ __attribute__((
         .revision = 0,  
 };
 
-static uint32_t rng_state = 2463534242U; // Seed (can be any non-zero value)
+__attribute__((
+    used,
+    section(".limine_requests")
+)) static volatile struct limine_framebuffer_request
+    framebuffer_request = {
+        .id = LIMINE_FRAMEBUFFER_REQUEST,
+        .revision = 0,
+};
 
-// Seed the PRNG
+const struct limine_framebuffer_response* get_framebuffer_response(void) {
+    return framebuffer_request.response;
+}
+
+struct limine_framebuffer *get_framebuffer()
+{
+    return framebuffer_request.response->framebuffers[0];
+}
+
+static uint32_t rng_state = 2463534242U;
+
 void srand_custom(uint32_t seed)
 {
     if (seed == 0)
-        seed = 1; // zero seed breaks Xorshift
+        seed = 1;
     rng_state = seed;
 }
-extern void os_trust_init(void);
-extern void register_builtin_drivers(void);
-// Generate a pseudo-random 32-bit number
+
 uint32_t rand_custom()
 {
     uint32_t x = rng_state;
@@ -89,7 +101,6 @@ uint32_t rand_custom()
     return x;
 }
 
-// Generate a random number in range [0, max)
 uint32_t rand_range(uint32_t max)
 {
     return rand_custom() % max;
@@ -111,93 +122,95 @@ void km_test()
     kmfree(d);
 }
 
+// Helper to find a device by name after initialization
+extern device_t* device_find_by_name(const char* name);
+
+// Helper functions to set global device pointers for legacy code
+extern void rtc_set_global(device_t* dev);
+extern void serial_set_global(device_t* dev);
+extern void fb_set_global(device_t* dev);
+extern void nvme_set_global(device_t* dev);
+
 void kmain(void)
 {
     if (LIMINE_BASE_REVISION_SUPPORTED == false)
         halt();
 
-    // os_trust_init();
-
     fpu_enable();
 
-    rtc_init();
-
-    if (serial_init() != 0)
-        halt();
+    // Early serial init for debug output (before driver system)
+    // We still need this for initial boot messages
+    outb(0x3f8 + 2, 0);
+    outb(0x3f8 + 3, 0b10000000);
+    outb(0x3f8 + 0, 115200 / 9600);
+    outb(0x3f8 + 1, 0);
+    outb(0x3f8 + 3, 0b00000011);
+    outb(0x3f8 + 4, 0);
 
     set_output_mode(OUTPUT_SERIAL);
 
-    if (init_framebuffer())
-        panic("Unable to initialize flanterm!");
-    
-    init_term();
-
-    // set_output_mode(OUTPUT_FLANTERM);
+    // Early framebuffer init for flanterm
+    // if (framebuffer_request.response && framebuffer_request.response->framebuffer_count > 0) {
+    //     struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
+    //     if (init_framebuffer())
+    //         panic("Unable to initialize flanterm!");
+    //     init_term();
+    // }
 
     gdt_init();
-
     cpu_local_setup();
 
-    kprint_rtc_init_string();
-
-    kprint_gdt_init_string();
-
+    // Memory initialization
     init_mem(hhdm_request.response->offset, memmap_request.response);
     vmm_init_kernel(*kernel_address_request.response);
-
     kmalloc_init();
 
     km_test();
 
     idt_init();
-
     tss_init_and_load();
 
+    // Initialize interrupt controller
     ioapic_init(&rsdp_request);
     lapic_init();
 
-    setup_input_interrupts();
-
-    
-
-    ktprintf("\n=== Device Manager Initialization ===\n");
-    
-    // 1. Initialize device manager
+    // === DRIVER SYSTEM INITIALIZATION ===
     device_manager_init();
     
-    // 2. Initialize hardware detection subsystem
-    hw_detect_init();
-    
-    // 3. Scan for hardware (this creates device_t objects)
-    ktprintf("\n--- Hardware Detection Phase ---\n");
-    hw_detect_ps2_scan();
-    hw_detect_pci_scan();
-    hw_detect_platform_devices();
-    
-    // 4. Register all builtin drivers
-    ktprintf("\n--- Driver Registration Phase ---\n");
-    register_builtin_drivers();
-    
-    // 5. Match devices to drivers and probe
-    ktprintf("\n--- Device-Driver Matching Phase ---\n");
-    device_manager_probe_all();
-    
-    // 6. Initialize all matched devices
-    ktprintf("\n--- Device Initialization Phase ---\n");
-    device_manager_init_all();
-    
-    ktprintf("\n=== Device Manager Initialization Complete ===\n\n");
-
-
-
+    // Enable interrupts after all drivers are initialized
     sti();
 
-    nvme_init();
+    // Find and set global pointers for legacy compatibility
+    device_t* rtc_dev = device_find_by_name("rtc");
+    if (rtc_dev && rtc_dev->initialized) {
+        rtc_set_global(rtc_dev);
+        kprint_rtc_init_string();
+    }
+    
+    kprint_gdt_init_string();
 
+    device_t* serial_dev = device_find_by_name("serial");
+    if (serial_dev && serial_dev->initialized) {
+        serial_set_global(serial_dev);
+    }
+
+    device_t* fb_dev = device_find_by_name("fb0");
+    if (fb_dev && fb_dev->initialized) {
+        fb_set_global(fb_dev);
+    }
+
+    device_t* nvme_dev = device_find_by_name("nvme0");
+    if (nvme_dev && nvme_dev->initialized) {
+        nvme_set_global(nvme_dev);
+    } else {
+        ktprintf("Warning: No NVMe device found!\n");
+    }
+
+    // Filesystem initialization (depends on NVMe)
     fs_init();
 
+    // Userspace initialization
     scheduler_init();
-
     init_syscall_table();
 
     scheduler();

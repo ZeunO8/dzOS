@@ -82,11 +82,6 @@ uint32_t lapic_read(uint32_t off);
 void lapic_send_eoi(void);
 uint32_t lapic_get_id(void);
 
-void keyboard_handler(void);
-void mouse_handler(void);
-void ps2_init(void);
-void input_devices_init(void);
-
 uint64_t parse_madt(volatile struct limine_rsdp_request* rsdp_request);
 
 // Basic ACPI structures

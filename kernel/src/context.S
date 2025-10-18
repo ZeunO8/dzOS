@@ -1,3 +1,5 @@
+# context.S
+
 #include "cpu/gdt.h"
 
 .section .text
@@ -28,6 +30,9 @@ reload_segments:
 .global context_switch_to_user
 .type context_switch_to_user, @function
 context_switch_to_user:
+    # rdi = to_context (&proc->ctx)
+    # rsi = from_context (&kernel_context)
+    
     # Save all general-purpose registers into the "from" context (kernel context)
     mov QWORD PTR [rsi + 0x00], r15
     mov QWORD PTR [rsi + 0x08], r14
@@ -49,7 +54,8 @@ context_switch_to_user:
     # Set the global kernel stack pointer for syscall/trap handling
     mov process_kstack, rsp
 
-    mov rbx, QWORD PTR [rsi + 0x58] # rbx := to_context (base pointer)
+    # FIXED: Use rdi directly, it already points to proc->ctx
+    mov rbx, rdi  # rbx := to_context (base pointer)
 
     # save the saved-rbx field on the stack so we don't clobber our base pointer
     push QWORD PTR [rbx + 0x28]        # push(saved_rbx)
@@ -71,12 +77,11 @@ context_switch_to_user:
     mov rcx, QWORD PTR [rbx + 0x68]
     mov rax, QWORD PTR [rbx + 0x70]
 
-    mov rsp, QWORD PTR [rbx + 0x78]
+    mov rsp, QWORD PTR [rbx + 0x78]    # Load user stack
     mov rcx, QWORD PTR [rbx + 0x80]    # RIP -> RCX for sysretq
-    mov r11, QWORD PTR [rbx + 0x88]   # RFLAGS -> R11 for sysretq
+    mov r11, QWORD PTR [rbx + 0x88]    # RFLAGS -> R11 for sysretq
 
-    pop rbx                            # restore the saved rbx into rbx
-
+    pop rbx                             # restore the saved rbx into rbx
 
     swapgs
     sysretq

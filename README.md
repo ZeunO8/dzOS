@@ -35,6 +35,7 @@ To get started with dzOS, make sure you have the following tools in your PATH
  - xxd
  - xorriso
  - qemu
+ - ninja-build
 
 Then to configure and build..
 

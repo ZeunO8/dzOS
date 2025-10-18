@@ -65,7 +65,7 @@ gdb build/isoroot/boot/kernel.elf
 
 ### Host support
 
-As of latest master branch, only ***unix-like*** OS can build *dzOS*, so, if on Windows, it is recommended to use WSL.
+As of latest master branch, only ***unix-like*** OS can build *dzOS*, so, if your host is ***Windows***, it is recommended to use ***WSL***.
 
 ### Resources used for development
 

@@ -387,6 +387,7 @@ void scheduler(void) {
         kernel_context.kernel_rip = (uint64_t)&&resume_scheduler;
         // switch to its memory space...
         install_pagetable(V2P(proc->pagetable));
+        vmm_flush_tlb();
         // and run it...
         context_switch_to_user(&proc->ctx, &kernel_context);
 resume_scheduler:

@@ -1,6 +1,6 @@
 # dzOS
 
-**dzOS** `(DirectZ OS)` is my attempt at building an operating system.
+**dzOS** `(DirectZ OS)` is my attempt at building an operating system kernel.
 
 It uses the Limine bootloader.
 

@@ -70,7 +70,7 @@ As of latest master branch, only ***unix-like*** OS can build *dzOS*, so, if on 
 ### Resources used for development
 
  - [OSDev wiki](https://wiki.osdev.org/)
- - [CrowOS](https://github.com/HirbodBehnam/CrowOS/)
+ - [CrowOS](https://github.com/HirbodBehnam/CrowOS/) - Great starting reference; **dzOS** has changed significantly since starting with code from **CrowOS**
  - [Limine Bootloader](https://github.com/limine-bootloader/)
  - [Intel Software Developers Manual](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html)
  - Various other developers via Discord

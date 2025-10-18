@@ -35,13 +35,14 @@ macro(add_userspace_prog NAME)
         set(_FS_PATH /${NAME})
     endif()
 
+    set(_OUT_OBJ ${CMAKE_CURRENT_LIST_DIR}/userspace/${NAME}.o)
     set(_BIN ${CMAKE_BINARY_DIR}/${NAME}.bin)
     set(_XXD_OUT ${DZOS_XXD_DIR}/${NAME}.c)
 
     add_custom_command(
         OUTPUT ${_BIN}
-        COMMAND ${CMAKE_C_COMPILER} --target=x86_64-unknown-elf -ffreestanding -fno-stack-protector -fno-pic -fno-pie -mno-red-zone -O2 -g -c ${SPC_SOURCES} -o ${NAME}.o
-        COMMAND ${LD_LLD_EXE} -flavor gnu -T ${USERSPACE_LINKER_SCRIPT} -o ${_BIN} ${NAME}.o ${USERSPACE_EXTRA_OBJS} --static -nostdlib
+        COMMAND ${CMAKE_C_COMPILER} --target=x86_64-unknown-elf -ffreestanding -fno-stack-protector -fno-pic -fno-pie -mno-red-zone -O2 -g -c ${SPC_SOURCES} -o ${_OUT_OBJ}
+        COMMAND ${LD_LLD_EXE} -flavor gnu -T ${USERSPACE_LINKER_SCRIPT} -o ${_BIN} ${_OUT_OBJ} ${USERSPACE_EXTRA_OBJS} --static -nostdlib
         DEPENDS ${SPC_SOURCES} ${USERSPACE_LINKER_SCRIPT}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "[userspace] Building ELF binary ${NAME}.bin using ld.lld.exe (Windows-safe)"

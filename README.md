@@ -76,4 +76,14 @@ As of latest master branch, only ***unix-like*** OS can build *dzOS*, so, if you
  - [Limine Bootloader](https://github.com/limine-bootloader/)
  - [Intel Software Developers Manual](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html)
  - Various other developers via Discord
- - AI tools such as ChatGPT/Claude/Gemini
+ - AI tools such as ChatGPT/Claude/Gemini for information gathering and help with problem solving
+ - Myself and many years experience programming the full stack
+
+### Project Goals
+
+ - Unix-like Kernel that is secure.
+ - Data is kept private and free from tamper (peace)
+ - Custom Windowing interface that may mirror many protocols
+ - Userspace apps
+ - Filesystem permissions
+ - **Embedded [DirectZ](https://github.com/ZeunO8/directz) Editor *(a userspace program)***

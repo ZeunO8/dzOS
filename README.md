@@ -52,12 +52,12 @@ cmake --build build --target qemu
 
 #### Or if you want to debug via GDB
 
-**first run:**
+**In a terminal, run:**
 ```bash
 cmake --build build --target qemu-debug
 ```
 
-**then in another terminal run:**
+**Then in another terminal, run:**
 ```bash
 gdb build/isoroot/boot/kernel.elf
 (gdb) b kmain

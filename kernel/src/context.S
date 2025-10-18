@@ -30,10 +30,7 @@ reload_segments:
 .global context_switch_to_user
 .type context_switch_to_user, @function
 context_switch_to_user:
-    # rdi = to_context (&proc->ctx)
-    # rsi = from_context (&kernel_context)
-    
-    # Save all general-purpose registers into the "from" context (kernel context)
+    # Save kernel context
     mov QWORD PTR [rsi + 0x00], r15
     mov QWORD PTR [rsi + 0x08], r14
     mov QWORD PTR [rsi + 0x10], r13
@@ -49,39 +46,32 @@ context_switch_to_user:
     mov QWORD PTR [rsi + 0x60], rdx
     mov QWORD PTR [rsi + 0x68], rcx
     mov QWORD PTR [rsi + 0x70], rax
-    mov QWORD PTR [rsi + 0x78], rsp # save kernel stack
+    mov QWORD PTR [rsi + 0x78], rsp
 
-    # Set the global kernel stack pointer for syscall/trap handling
     mov process_kstack, rsp
-
-    # FIXED: Use rdi directly, it already points to proc->ctx
-    mov rbx, rdi  # rbx := to_context (base pointer)
-
-    # save the saved-rbx field on the stack so we don't clobber our base pointer
-    push QWORD PTR [rbx + 0x28]        # push(saved_rbx)
-
-    # Load destination/user registers from *rbx* (to_context)
-    mov r15, QWORD PTR [rbx + 0x00]
-    mov r14, QWORD PTR [rbx + 0x08]
-    mov r13, QWORD PTR [rbx + 0x10]
-    mov r12, QWORD PTR [rbx + 0x18]
-    mov rbp, QWORD PTR [rbx + 0x20]
-
-    mov r11, QWORD PTR [rbx + 0x30]
-    mov r10, QWORD PTR [rbx + 0x38]
-    mov r9,  QWORD PTR [rbx + 0x40]
-    mov r8,  QWORD PTR [rbx + 0x48]
-    mov rsi, QWORD PTR [rbx + 0x50]
-    mov rdi, QWORD PTR [rbx + 0x58]
-    mov rdx, QWORD PTR [rbx + 0x60]
-    mov rcx, QWORD PTR [rbx + 0x68]
-    mov rax, QWORD PTR [rbx + 0x70]
-
-    mov rsp, QWORD PTR [rbx + 0x78]    # Load user stack
-    mov rcx, QWORD PTR [rbx + 0x80]    # RIP -> RCX for sysretq
-    mov r11, QWORD PTR [rbx + 0x88]    # RFLAGS -> R11 for sysretq
-
-    pop rbx                             # restore the saved rbx into rbx
+    
+    # Load sysretq parameters FIRST (while still on kernel stack)
+    mov rcx, QWORD PTR [rdi + 0x80]    # RIP -> RCX
+    mov r11, QWORD PTR [rdi + 0x88]    # RFLAGS -> R11
+    
+    # Load user registers (use rdi as base since we don't need it anymore)
+    mov r15, QWORD PTR [rdi + 0x00]
+    mov r14, QWORD PTR [rdi + 0x08]
+    mov r13, QWORD PTR [rdi + 0x10]
+    mov r12, QWORD PTR [rdi + 0x18]
+    mov rbp, QWORD PTR [rdi + 0x20]
+    mov rbx, QWORD PTR [rdi + 0x28]
+    # r11 already loaded (sysretq RFLAGS)
+    mov r10, QWORD PTR [rdi + 0x38]
+    mov r9,  QWORD PTR [rdi + 0x40]
+    mov r8,  QWORD PTR [rdi + 0x48]
+    mov rsi, QWORD PTR [rdi + 0x50]
+    # rdi loaded last
+    mov rdx, QWORD PTR [rdi + 0x60]
+    # rcx already loaded (sysretq RIP)
+    mov rax, QWORD PTR [rdi + 0x70]
+    mov rsp, QWORD PTR [rdi + 0x78]    # Switch to user stack
+    mov rdi, QWORD PTR [rdi + 0x58]    # Load rdi last since we used it as base
 
     swapgs
     sysretq

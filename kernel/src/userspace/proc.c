@@ -361,16 +361,15 @@ void coelesce_processes(size_t i)
  */
 void scheduler(void) {
   ktprintf("Scheduler initiated\n");
-  for (;;) { // forever...
-    // The most recent process to run may have had interrupts
-    // turned off; enable them to avoid a deadlock if all
-    // processes are waiting.
-    // sti();
-    for (size_t i = 0; i < process_count; i++) { // look for processes...
+  for (;;) {
+    for (size_t i = 0; i < process_count; i++) {
       struct process* proc = processes[i];
       if (!proc)
         continue;
-      condvar_lock(&proc->lock);          // lock them to inspect them...
+      condvar_lock(&proc->lock);
+			if (proc->state == RUNNING) {
+				proc_check_stack_canary(proc);
+			}
       switch (proc->state) {
       case RUNNABLE:
         proc->state = RUNNING; // which are runnable...
@@ -423,4 +422,31 @@ resume_scheduler:
         condvar_unlock(&proc->lock);
     }
   }
+}
+
+void proc_init_stack_canary(struct process *proc)
+{
+	// Use TSC + PID for unique canary
+	uint64_t tsc = get_tsc();
+	proc->stack_canary = STACK_CANARY_MAGIC ^ tsc ^ proc->pid;
+	
+	// Write canary at bottom of stack (above guard page)
+	uint64_t *canary_location = (uint64_t *)proc->kernel_stack_base;
+	*canary_location = proc->stack_canary;
+}
+
+void proc_check_stack_canary(struct process *proc)
+{
+	uint64_t *canary_location = (uint64_t *)proc->kernel_stack_base;
+	if (*canary_location != proc->stack_canary) {
+		kprintf("\n");
+		kprintf("================================================\n");
+		kprintf("KERNEL PANIC: Stack Canary Corrupted!\n");
+		kprintf("================================================\n");
+		kprintf("Process: PID %llu\n", proc->pid);
+		kprintf("Expected: 0x%llx\n", proc->stack_canary);
+		kprintf("Found:    0x%llx\n", *canary_location);
+		kprintf("================================================\n");
+		panic("Stack corruption detected");
+	}
 }

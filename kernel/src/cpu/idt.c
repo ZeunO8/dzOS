@@ -5,6 +5,36 @@
 #include "traps.h"
 #include "common/printf.h"
 #include "device/pic.h"
+#include "userspace/proc.h"
+
+void handle_page_fault(uint64_t error_code, uint64_t faulting_address)
+{
+	// Check if this is a stack overflow
+	struct process *p = my_process();
+	if (p) {
+		uint64_t guard_page_start = p->kernel_stack_base - KERNEL_STACK_GUARD_SIZE;
+		uint64_t guard_page_end = p->kernel_stack_base;
+		
+		if (faulting_address >= guard_page_start && faulting_address < guard_page_end) {
+			// Stack overflow detected!
+			kprintf("\n");
+			kprintf("================================================\n");
+			kprintf("KERNEL PANIC: Stack Overflow Detected!\n");
+			kprintf("================================================\n");
+			kprintf("Process: PID %llu\n", p->pid);
+			kprintf("Faulting address: 0x%llx (guard page)\n", faulting_address);
+			kprintf("Stack range: 0x%llx - 0x%llx\n", 
+			        p->kernel_stack_base, p->kernel_stack_top);
+			kprintf("Error code: 0x%llx\n", error_code);
+			kprintf("================================================\n");
+			panic("Stack overflow - increase KERNEL_STACK_SIZE");
+		}
+	}
+	
+	// Handle other page faults normally
+	kprintf("Page fault at 0x%llx (error: 0x%llx)\n", faulting_address, error_code);
+	panic("Unhandled page fault");
+}
 
 struct idt_entry {
     uint16_t offset_low;

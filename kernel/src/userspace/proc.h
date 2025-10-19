@@ -6,6 +6,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define STACK_CANARY_MAGIC 0xDEADBEEFCAFEBABEULL
+
 /**
  * Each process that this process can be in
  */
@@ -69,7 +71,25 @@ struct process_data {
  * Each process can be represented with this
  */
 struct process {
-
+  /**
+  * Kernel stack layout per process (20KB total):
+  * 
+  *   High Address (grows down)
+  *   +------------------+ <- kernel_stack_top (RSP starts here)
+  *   |                  |
+  *   |  Actual Stack    | 16KB (KERNEL_STACK_SIZE)
+  *   |  (grows down)    |
+  *   |                  |
+  *   +------------------+ <- kernel_stack_base
+  *   |                  |
+  *   |  Guard Page      | 4KB (unmapped, causes page fault)
+  *   |  (NOT PRESENT)   |
+  *   |                  |
+  *   +------------------+
+  *   Low Address
+  * 
+  * Stack overflow will hit guard page → page fault → panic
+  */
   uint64_t kernel_stack_top;   // top of kernel stack (highest address)
   uint64_t kernel_stack_base;  // start of kernel stack (lowest address)
 
@@ -109,6 +129,8 @@ struct process {
   int exit_status;
   // What is going on in this process?
   enum process_state state;
+
+  uint64_t stack_canary;
 };
 
 struct process *my_process(void);
@@ -122,3 +144,6 @@ void sys_sleep(uint64_t msec);
 void scheduler_init(void);
 void scheduler_switch_back(void);
 void scheduler(void);
+
+void proc_init_stack_canary(struct process *proc);
+void proc_check_stack_canary(struct process *proc);

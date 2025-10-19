@@ -682,52 +682,96 @@ void *vmm_map_physical(uint64_t phys_start, uint64_t phys_end) {
 	return (void *)((uintptr_t)va + offset);
 }
 
+/**
+ * Allocate a kernel stack for a process with a guard page at the bottom.
+ * Layout:
+ *   [Guard Page (unmapped)] [Stack (16KB)] <- SP starts here
+ *   ^base                   ^base+4KB      ^base+20KB (top)
+ */
 uint64_t vmm_allocate_proc_kernel_stack(uint64_t i)
 {
-	// Allocate and map kernel stacks for all processes
-	uint64_t kernel_va = KERNEL_STACK_BASE + i * KERNEL_STACK_SIZE;
-	uint64_t kernel_remaining = KERNEL_STACK_SIZE;
-
-	while (kernel_remaining) {
+	uint64_t kernel_va = KERNEL_STACK_BASE + i * KERNEL_STACK_TOTAL_SIZE;
+	
+	// 1. Map guard page as NOT PRESENT (will page fault on access)
+	uint64_t guard_va = kernel_va;
+	pte_t *guard_pte = walk_kernel(kernel_pagetable, guard_va, true);
+	if (!guard_pte) {
+		panic("vmm_allocate_proc_kernel_stack: failed to allocate guard page PTE");
+	}
+	
+	// Allocate physical page but mark as not present
+	void *guard_page = kalloc_for_page_cache();
+	if (!guard_page) {
+		panic("vmm_allocate_proc_kernel_stack: out of memory for guard page");
+	}
+	
+	// Set PTE with NOT PRESENT bit (no PTE_P flag)
+	*guard_pte = PTE_SET_ADDR(V2P(guard_page)); // Intentionally omit PTE_P
+	vmm_invalidate_page(guard_va);
+	
+	// 2. Allocate actual stack pages (16KB = 4 pages)
+	uint64_t stack_va = kernel_va + KERNEL_STACK_GUARD_SIZE;
+	uint64_t stack_remaining = KERNEL_STACK_SIZE;
+	
+	while (stack_remaining) {
 		void *proc_page = kalloc_for_page_cache();
-		if (!proc_page)
-			panic("vmm_init_kernel: out of kernel pages for stacks");
-
+		if (!proc_page) {
+			panic("vmm_allocate_proc_kernel_stack: out of memory for stack pages");
+		}
+		
 		uint64_t kernel_pa = V2P(proc_page);
-
+		
 		// Map one page at a time
 		if (vmm_map_kernel_pages(
 		            kernel_pagetable,
-		            kernel_va + (KERNEL_STACK_SIZE - kernel_remaining),
+		            stack_va + (KERNEL_STACK_SIZE - stack_remaining),
 		            kernel_pa,
 		            PAGE_SIZE,
 		(pte_permissions) {
-		.writable=1, .executable=0, .userspace=0
-	}) < 0
-	   )
-		panic("vmm_init_kernel: failed to map kernel stack page");
-
-		kernel_remaining -= PAGE_SIZE;
+			.writable=1, .executable=0, .userspace=0
+		}) < 0) {
+			panic("vmm_allocate_proc_kernel_stack: failed to map stack page");
+		}
+		
+		stack_remaining -= PAGE_SIZE;
 	}
-	return kernel_va + KERNEL_STACK_SIZE;
+	
+	// Return top of stack (grows downward)
+	return stack_va + KERNEL_STACK_SIZE;
 }
 
+/**
+ * Free kernel stack including guard page.
+ */
 void vmm_free_proc_kernel_stack(uint64_t i)
 {
-	uint64_t kernel_va = KERNEL_STACK_BASE + i * KERNEL_STACK_SIZE;
-	uint64_t kernel_remaining = KERNEL_STACK_SIZE;
-
-	while (kernel_remaining) {
-		uint64_t va = kernel_va + (KERNEL_STACK_SIZE - kernel_remaining);
+	uint64_t kernel_va = KERNEL_STACK_BASE + i * KERNEL_STACK_TOTAL_SIZE;
+	
+	// 1. Free guard page
+	pte_t *guard_pte = walk_kernel(kernel_pagetable, kernel_va, false);
+	if (guard_pte) {
+		uint64_t guard_pa = pte_follow(*guard_pte);
+		*guard_pte = 0; // Clear PTE
+		vmm_invalidate_page(kernel_va);
+		kfree((void*)P2V(guard_pa));
+	}
+	
+	// 2. Free stack pages
+	uint64_t stack_va = kernel_va + KERNEL_STACK_GUARD_SIZE;
+	uint64_t stack_remaining = KERNEL_STACK_SIZE;
+	
+	while (stack_remaining) {
+		uint64_t va = stack_va + (KERNEL_STACK_SIZE - stack_remaining);
 		pte_t *pte = walk_kernel(kernel_pagetable, va, false);
-		if (!pte || !pte_is_present(*pte))
-			panic("vmm_free_proc_kernel_stack: missing PTE");
-
+		if (!pte || !pte_is_present(*pte)) {
+			panic("vmm_free_proc_kernel_stack: missing PTE for stack page");
+		}
+		
 		uint64_t pa = pte_follow(*pte);
-		*pte = 0; // clear entire PTE
-		vmm_invalidate_page(va); // Invalidate TLB
+		*pte = 0; // Clear entire PTE
+		vmm_invalidate_page(va);
 		kfree((void*)P2V(pa));
-		kernel_remaining -= PAGE_SIZE;
+		stack_remaining -= PAGE_SIZE;
 	}
 }
 

@@ -28,11 +28,24 @@ add_custom_target(qemu
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
+add_custom_target(qemu-2-drive
+    DEPENDS os-iso
+    COMMAND qemu-system-x86_64 -cdrom ${CMAKE_BINARY_DIR}/os-image.iso -m 512M -k en_us -boot d -serial stdio -device nvme,drive=nvme0,serial=deadbeef -drive file=nvme.img,format=raw,if=none,id=nvme0 -device nvme,drive=nvme1,serial=deadbeef -drive file=nvme2.img,format=raw,if=none,id=nvme1
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
 if(NOT CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
     add_custom_target(qemu-debug
         DEPENDS os-iso
         COMMAND ${CMAKE_COMMAND} -E echo "Launching QEMU in debug mode..."
         COMMAND qemu-system-x86_64 -cdrom ${CMAKE_BINARY_DIR}/os-image.iso -k en_us -boot d -m 512M -s -S -no-reboot -no-shutdown -serial stdio -device nvme,drive=nvme0,serial=deadbeef -drive file=nvme.img,format=raw,if=none,id=nvme0
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        USES_TERMINAL
+    )
+    add_custom_target(qemu-debug-2-drive
+        DEPENDS os-iso
+        COMMAND ${CMAKE_COMMAND} -E echo "Launching QEMU in debug mode..."
+        COMMAND qemu-system-x86_64 -cdrom ${CMAKE_BINARY_DIR}/os-image.iso -k en_us -boot d -m 512M -s -S -no-reboot -no-shutdown -serial stdio -device nvme,drive=nvme0,serial=deadbeef -drive file=nvme.img,format=raw,if=none,id=nvme0 -device nvme,drive=nvme1,serial=deadbeef -drive file=nvme2.img,format=raw,if=none,id=nvme1
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         USES_TERMINAL
     )

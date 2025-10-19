@@ -100,6 +100,9 @@ typedef struct {
     uint16_t next_command_id;
 } nvme_device_data_t;
 
+// Global device counter for unique naming
+static uint32_t g_nvme_device_count = 0;
+
 #define NEXT_CID(nvme) (__atomic_fetch_add(&(nvme)->next_command_id, 1, __ATOMIC_RELAXED))
 
 static void nvme_disable_device(nvme_device_data_t *nvme) {
@@ -271,10 +274,19 @@ static int nvme_init(device_t *dev) {
     nvme_identify_namespace(nvme);
     
     dev->driver_data = nvme;
-    dev->name = "nvme0";
     
-    ktprintf("[NVME_DRIVER] NVMe ready: %llu blocks of %u bytes (%llu MB)\n",
-             nvme->total_blocks, nvme->block_size,
+    // Allocate and assign unique device name
+    uint32_t device_id = __atomic_fetch_add(&g_nvme_device_count, 1, __ATOMIC_SEQ_CST);
+    char *device_name = kcmalloc(16);  // Enough for "nvme" + max uint32 digits
+    if (device_name) {
+        snprintf(device_name, 16, "nvme%u", device_id);
+        dev->name = device_name;
+    } else {
+        dev->name = "nvme?";  // Fallback if allocation fails
+    }
+    
+    ktprintf("[NVME_DRIVER] %s ready: %llu blocks of %u bytes (%llu MB)\n",
+             dev->name, nvme->total_blocks, nvme->block_size,
              (nvme->total_blocks * nvme->block_size) / (1024 * 1024));
     
     return 0;
@@ -292,12 +304,20 @@ static int nvme_write_op(device_t *dev, const void *buffer, size_t count) {
     return 0;
 }
 
+static int nvme_remove_op(device_t *dev)
+{
+    if (!dev)
+        return 0;
+    kfree((void*)dev->name);
+    return 0;
+}
+
 static const driver_ops_t nvme_ops = {
     .probe = nvme_probe,
     .init = nvme_init,
     .read = nvme_read_op,
     .write = nvme_write_op,
-    .remove = NULL,
+    .remove = nvme_remove_op,
     .ioctl = NULL,
     .irq_handler = NULL
 };

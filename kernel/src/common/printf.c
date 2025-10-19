@@ -1,8 +1,4 @@
-/**
- * Mostly from xv6-riscv:
- * https://github.com/mit-pdos/xv6-riscv/blob/de247db5e6384b138f270e0a7c745989b5a9c23b/kernel/printf.c#L26C1-L51C1
- */
-
+// printf.c
 #include "term.h"
 #include "printf.h"
 #include "cpu/asm.h"
@@ -64,6 +60,35 @@ void kprintint(long long xx, int base, int sign)
 
   if (sign)
     buf[i++] = '-';
+
+  while (--i >= 0)
+    kputc(buf[i]);
+  
+  kprints(COLOR_RESET);
+}
+
+void kprintint_padded(long long xx, int base, int sign, int width, char pad)
+{
+  kprints(c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
+  char buf[20];
+  int i;
+  unsigned long long x;
+
+  if (sign && (sign = (xx < 0)))
+    x = -xx;
+  else
+    x = xx;
+
+  i = 0;
+  do {
+    buf[i++] = digits[x % base];
+  } while ((x /= base) != 0);
+
+  if (sign)
+    buf[i++] = '-';
+
+  while (i < width)
+    buf[i++] = pad;
 
   while (--i >= 0)
     kputc(buf[i]);
@@ -137,6 +162,40 @@ int cprintint(char* dest, int* rem, long long xx, int base, int sign)
   return len;
 }
 
+int cprintint_padded(char* dest, int* rem, long long xx, int base, int sign, int width, char pad)
+{
+  int len = 0;
+  int tlen = cprintf(dest, rem, c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
+  dest += tlen;
+  len += tlen;
+  char buf[20];
+  int i;
+  unsigned long long x;
+
+  if (sign && (sign = (xx < 0)))
+    x = -xx;
+  else
+    x = xx;
+
+  i = 0;
+  do {
+    buf[i++] = digits[x % base];
+  } while ((x /= base) != 0);
+
+  if (sign)
+    buf[i++] = '-';
+
+  while (i < width)
+    buf[i++] = pad;
+
+  while (--i >= 0)
+    len += cputc(dest++, rem, buf[i]);
+  tlen = cprintf(dest, rem, COLOR_RESET);
+  dest += tlen;
+  len += tlen;
+  return len;
+}
+
 int cprintptr(char* dest, int* rem, uint64_t x)
 {
   int len = 0;
@@ -192,6 +251,18 @@ void kprints(char* s)
     kputc(*s);
 }
 
+// Helper function to parse width field
+static int parse_width(const char *fmt, int *idx)
+{
+  int width = 0;
+  while (fmt[*idx] >= '0' && fmt[*idx] <= '9')
+  {
+    width = width * 10 + (fmt[*idx] - '0');
+    (*idx)++;
+  }
+  return width;
+}
+
 int kvprintf(const char *fmt, va_list ap)
 {
     int i, cx, c0, c1, c2; char *s;
@@ -202,9 +273,22 @@ int kvprintf(const char *fmt, va_list ap)
           kputc(cx);
           continue;
         }
-        i++; c0 = fmt[i + 0] & 0xff; c1 = c2 = 0;
+        i++; 
+        
+        // Check for width specifier with leading zero (e.g., %08x)
+        int width = 0;
+        char pad = ' ';
+        if (fmt[i] == '0')
+        {
+          pad = '0';
+          i++;
+        }
+        width = parse_width(fmt, &i);
+        
+        c0 = fmt[i + 0] & 0xff; c1 = c2 = 0;
         if (c0) c1 = fmt[i + 1] & 0xff;
         if (c1) c2 = fmt[i + 2] & 0xff;
+        
         if (c0 == 'd')
           kprintint(va_arg(ap, int), 10, 1);
         else if (c0 == 'l' && c1 == 'd')
@@ -229,16 +313,32 @@ int kvprintf(const char *fmt, va_list ap)
           kprintint(va_arg(ap, uint64_t), 10, 0);
           i += 2;
         }
+        else if (c0 == 'z' && c1 == 'u')
+        {
+          kprintint(va_arg(ap, size_t), 10, 0);
+          i += 1;
+        }
         else if (c0 == 'x')
-          kprintint(va_arg(ap, int), 16, 0);
+        {
+          if (width > 0)
+            kprintint_padded(va_arg(ap, int), 16, 0, width, pad);
+          else
+            kprintint(va_arg(ap, int), 16, 0);
+        }
         else if (c0 == 'l' && c1 == 'x')
         {
-          kprintint(va_arg(ap, uint64_t), 16, 0);
+          if (width > 0)
+            kprintint_padded(va_arg(ap, uint64_t), 16, 0, width, pad);
+          else
+            kprintint(va_arg(ap, uint64_t), 16, 0);
           i += 1;
         }
         else if (c0 == 'l' && c1 == 'l' && c2 == 'x')
         {
-          kprintint(va_arg(ap, uint64_t), 16, 0);
+          if (width > 0)
+            kprintint_padded(va_arg(ap, uint64_t), 16, 0, width, pad);
+          else
+            kprintint(va_arg(ap, uint64_t), 16, 0);
           i += 2;
         }
         else if (c0 == 'p')
@@ -259,12 +359,6 @@ int kvprintf(const char *fmt, va_list ap)
           kprintfloat(f, 6);
           i += 1;
         }
-        // else if (c0 == 'L' && c1 == 'f')
-        // {
-        //   long double f = va_arg(ap, long double);
-        //   kprintfloat(f, 6);
-        //   i += 1;
-        // }
         else if (c0 == '%')
           kputc('%');
         else if (c0 == 0)
@@ -289,12 +383,24 @@ int cvprintf(char* dest, int* rem, const char *fmt, va_list ap)
           continue;
         }
         i++;
+        
+        // Check for width specifier with leading zero (e.g., %08x)
+        int width = 0;
+        char pad = ' ';
+        if (fmt[i] == '0')
+        {
+          pad = '0';
+          i++;
+        }
+        width = parse_width(fmt, &i);
+        
         c0 = fmt[i + 0] & 0xff;
         c1 = c2 = 0;
         if (c0)
           c1 = fmt[i + 1] & 0xff;
         if (c1)
           c2 = fmt[i + 2] & 0xff;
+        
         if (c0 == 'd')
         {
           int tlen = cprintint(dest, rem, va_arg(ap, int), 10, 1);
@@ -335,22 +441,41 @@ int cvprintf(char* dest, int* rem, const char *fmt, va_list ap)
           len += tlen;
           i += 2;
         }
+        else if (c0 == 'z' && c1 == 'u')
+        {
+          int tlen = cprintint(dest, rem, va_arg(ap, size_t), 10, 0);
+          dest += tlen;
+          len += tlen;
+          i += 1;
+        }
         else if (c0 == 'x')
         {
-          int tlen = cprintint(dest, rem, va_arg(ap, int), 16, 0);
+          int tlen;
+          if (width > 0)
+            tlen = cprintint_padded(dest, rem, va_arg(ap, int), 16, 0, width, pad);
+          else
+            tlen = cprintint(dest, rem, va_arg(ap, int), 16, 0);
           dest += tlen;
           len += tlen;
         }
         else if (c0 == 'l' && c1 == 'x')
         {
-          int tlen = cprintint(dest, rem, va_arg(ap, uint64_t), 16, 0);
+          int tlen;
+          if (width > 0)
+            tlen = cprintint_padded(dest, rem, va_arg(ap, uint64_t), 16, 0, width, pad);
+          else
+            tlen = cprintint(dest, rem, va_arg(ap, uint64_t), 16, 0);
           dest += tlen;
           len += tlen;
           i += 1;
         }
         else if (c0 == 'l' && c1 == 'l' && c2 == 'x')
         {
-          int tlen = cprintint(dest, rem, va_arg(ap, uint64_t), 16, 0);
+          int tlen;
+          if (width > 0)
+            tlen = cprintint_padded(dest, rem, va_arg(ap, uint64_t), 16, 0, width, pad);
+          else
+            tlen = cprintint(dest, rem, va_arg(ap, uint64_t), 16, 0);
           dest += tlen;
           len += tlen;
           i += 2;
@@ -383,12 +508,6 @@ int cvprintf(char* dest, int* rem, const char *fmt, va_list ap)
           len += tlen;
           i += 1;
         }
-        // else if (c0 == 'L' && c1 == 'f')
-        // {
-        //   long double f = va_arg(ap, long double);
-        //   kprintfloat(f, 6);
-        //   i += 1;
-        // }
         else if (c0 == '%') len += cputc(dest++, rem, '%');
         else if (c0 == 0) break;
         else

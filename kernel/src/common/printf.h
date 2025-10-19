@@ -24,6 +24,7 @@ int kvprintf(const char *fmt, va_list ap);
 int cvprintf(char* dest, int* rem, const char *fmt, va_list ap);
 int kprintf(const char *fmt, ...);
 int cprintf(char* dest, int* rem, const char *fmt, ...);
+int snprintf(char* dest, int dest_len, const char *fmt, ...);
 int ktprintf(const char *fmt, ...);
 int ctprintf(char* dest, int* rem, const char *fmt, ...);
 

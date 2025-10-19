@@ -39,11 +39,12 @@ int cputc(char* dest, int* rem, char c)
 }
 
 bool c_time_print = false;
+bool print_colored = true;
 
 void kprintint(long long xx, int base, int sign)
 {
-  
-  kprints(c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
+  if (print_colored)
+    kprints(c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
   char buf[20];
   int i;
   unsigned long long x;
@@ -64,12 +65,14 @@ void kprintint(long long xx, int base, int sign)
   while (--i >= 0)
     kputc(buf[i]);
   
-  kprints(COLOR_RESET);
+  if (print_colored)
+    kprints(COLOR_RESET);
 }
 
 void kprintint_padded(long long xx, int base, int sign, int width, char pad)
 {
-  kprints(c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
+  if (print_colored)
+    kprints(c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
   char buf[20];
   int i;
   unsigned long long x;
@@ -93,19 +96,22 @@ void kprintint_padded(long long xx, int base, int sign, int width, char pad)
   while (--i >= 0)
     kputc(buf[i]);
   
-  kprints(COLOR_RESET);
+  if (print_colored)
+    kprints(COLOR_RESET);
 }
 
 void kprintptr(uint64_t x)
 {
-  
-  kprints(c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
+  if (print_colored)
+    kprints(c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
+
   kputc('0');
   kputc('x');
   for (size_t i = 0; i < (sizeof(uint64_t) * 2); i++, x <<= 4)
     kputc(digits[x >> (sizeof(uint64_t) * 8 - 4)]);
-  
-  kprints(COLOR_RESET);
+
+  if (print_colored)
+    kprints(COLOR_RESET);
 }
 
 double first_print_now = 0.0;
@@ -117,8 +123,9 @@ void kprintfloat(double f, int precision)
   uint64_t int_part = (uint64_t)f;
   double frac_part = f - (double)int_part;
   kprintint(int_part, 10, 0);
-  
-  kprints(c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
+
+  if (print_colored)
+    kprints(c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
   kputc('.');
   for (int i = 0; i < precision; i++)
   {
@@ -127,16 +134,20 @@ void kprintfloat(double f, int precision)
     kputc('0' + digit);
     frac_part -= digit;
   }
-  
-  kprints(COLOR_RESET);
+
+  if (print_colored)
+    kprints(COLOR_RESET);
 }
 
 int cprintint(char* dest, int* rem, long long xx, int base, int sign)
 {
   int len = 0;
-  int tlen = cprintf(dest, rem, c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
-  dest += tlen;
-  len += tlen;
+  int tlen = 0;
+  if (print_colored) {
+    tlen = cprintf(dest, rem, c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
+    dest += tlen;
+    len += tlen;
+  }
   char buf[20];
   int i;
   unsigned long long x;
@@ -156,18 +167,23 @@ int cprintint(char* dest, int* rem, long long xx, int base, int sign)
 
   while (--i >= 0)
     len += cputc(dest++, rem, buf[i]);
-  tlen = cprintf(dest, rem, COLOR_RESET);
-  dest += tlen;
-  len += tlen;
+  if (print_colored) {
+    tlen = cprintf(dest, rem, COLOR_RESET);
+    dest += tlen;
+    len += tlen;
+  }
   return len;
 }
 
 int cprintint_padded(char* dest, int* rem, long long xx, int base, int sign, int width, char pad)
 {
   int len = 0;
-  int tlen = cprintf(dest, rem, c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
-  dest += tlen;
-  len += tlen;
+  int tlen = 0;
+  if (print_colored) {
+    tlen = cprintf(dest, rem, c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
+    dest += tlen;
+    len += tlen;
+  }
   char buf[20];
   int i;
   unsigned long long x;
@@ -190,25 +206,32 @@ int cprintint_padded(char* dest, int* rem, long long xx, int base, int sign, int
 
   while (--i >= 0)
     len += cputc(dest++, rem, buf[i]);
-  tlen = cprintf(dest, rem, COLOR_RESET);
-  dest += tlen;
-  len += tlen;
+  if (print_colored) {
+    tlen = cprintf(dest, rem, COLOR_RESET);
+    dest += tlen;
+    len += tlen;
+  }
   return len;
 }
 
 int cprintptr(char* dest, int* rem, uint64_t x)
 {
   int len = 0;
-  int tlen = cprintf(dest, rem, c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
-  dest += tlen;
-  len += tlen;
+  int tlen = 0;
+  if (print_colored) {
+    tlen = cprintf(dest, rem, c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
+    dest += tlen;
+    len += tlen;
+  }
   len += cputc(dest++, rem, '0');
   len += cputc(dest++, rem, 'x');
   for (size_t i = 0; i < (sizeof(uint64_t) * 2); i++, x <<= 4)
     len += cputc(dest++, rem, digits[x >> (sizeof(uint64_t) * 8 - 4)]);
-  tlen = cprintf(dest, rem, COLOR_RESET);
-  dest += tlen;
-  len += tlen;
+  if (print_colored) {
+    tlen = cprintf(dest, rem, COLOR_RESET);
+    dest += tlen;
+    len += tlen;
+  }
   return len;
 }
 
@@ -226,9 +249,11 @@ int cprintfloat(char* dest, int* rem, double f, int precision)
   dest += tlen;
   len += tlen;
 
-  tlen = cprintf(dest, rem, c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
-  dest += tlen;
-  len += tlen;
+  if (print_colored) {
+    tlen = cprintf(dest, rem, c_time_print ? COLOR_BRIGHT_YELLOW_FG : COLOR_MAGENTA_FG);
+    dest += tlen;
+    len += tlen;
+  }
   len += cputc(dest++, rem, '.');
   for (int i = 0; i < precision; i++)
   {
@@ -237,9 +262,11 @@ int cprintfloat(char* dest, int* rem, double f, int precision)
     len += cputc(dest++, rem, '0' + digit);
     frac_part -= digit;
   }
-  tlen = cprintf(dest, rem, COLOR_RESET);
-  dest += tlen;
-  len += tlen;
+  if (print_colored) {
+    tlen = cprintf(dest, rem, COLOR_RESET);
+    dest += tlen;
+    len += tlen;
+  }
   return len;
 }
 
@@ -541,6 +568,22 @@ int cprintf(char* dest, int* rem, const char *fmt, ...)
     len += tlen;
     va_end(ap);
     return len;
+}
+
+int snprintf(char* dest, int dest_len, const char *fmt, ...)
+{
+  bool ol_print_colored = print_colored;
+  print_colored = false;
+  int len = 0;
+  int tlen = 0;
+  va_list ap;
+  va_start(ap, fmt);
+  tlen = cvprintf(dest, &dest_len, fmt, ap);
+  dest += tlen;
+  len += tlen;
+  va_end(ap);
+  print_colored = ol_print_colored;
+  return len;
 }
 
 int ktprintf(const char *fmt, ...)

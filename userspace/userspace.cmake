@@ -15,15 +15,13 @@ macro(add_userspace_prog NAME)
     target_compile_options(${NAME} PRIVATE
         --target=x86_64-unknown-elf
         -fno-stack-protector -fno-pic
-        -fno-pie -mno-red-zone -nostdlib# -nostartfiles
+        -fno-pie -mno-red-zone -nostdlib
     )
 
     set_optimizations(${NAME})
 
     target_link_options(${NAME} PRIVATE
-        -static -nostdlib# -nostartfiles
-        # -Wl,--build-id=none
-        # -Wl,-T${CMAKE_SOURCE_DIR}/link.ld
+        -static -nostdlib
     )
 
     target_link_libraries(${NAME} PRIVATE c)

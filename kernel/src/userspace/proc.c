@@ -1,6 +1,7 @@
 // proc.c
 #include "proc.h"
 #include "common/lib.h"
+#include "common/power.h"
 #include "common/printf.h"
 #include "cpu/asm.h"
 #include "cpu/fpu.h"
@@ -362,6 +363,9 @@ void coelesce_processes(size_t i)
 void scheduler(void) {
   ktprintf("Scheduler initiated\n");
   for (;;) {
+    if (process_count == 0) {
+      system_shutdown();
+    }
     for (size_t i = 0; i < process_count; i++) {
       struct process* proc = processes[i];
       if (!proc)

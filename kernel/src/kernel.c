@@ -122,10 +122,7 @@ void km_test()
     kmfree(d);
 }
 
-// Helper to find a device by name after initialization
 extern device_t* device_find_by_name(const char* name);
-
-// Helper functions to set global device pointers for legacy code
 extern void rtc_set_global(device_t* dev);
 extern void serial_set_global(device_t* dev);
 extern void fb_set_global(device_t* dev);
@@ -139,7 +136,6 @@ void kmain(void)
     fpu_enable();
 
     // Early serial init for debug output (before driver system)
-    // We still need this for initial boot messages
     outb(0x3f8 + 2, 0);
     outb(0x3f8 + 3, 0b10000000);
     outb(0x3f8 + 0, 115200 / 9600);
@@ -148,14 +144,6 @@ void kmain(void)
     outb(0x3f8 + 4, 0);
 
     set_output_mode(OUTPUT_SERIAL);
-
-    // Early framebuffer init for flanterm
-    // if (framebuffer_request.response && framebuffer_request.response->framebuffer_count > 0) {
-    //     struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
-    //     if (init_framebuffer())
-    //         panic("Unable to initialize flanterm!");
-    //     init_term();
-    // }
 
     gdt_init();
     cpu_local_setup();
@@ -174,18 +162,20 @@ void kmain(void)
     ioapic_init(&rsdp_request);
     lapic_init();
 
-    // === DRIVER SYSTEM INITIALIZATION ===
+    // === EARLY DEVICE INITIALIZATION (RTC for timestamps) ===
+    device_manager_early_init();
+    
+    // Now we have timestamps! This will show actual time
+    kprint_rtc_init_string();
+    
+    // === FULL DRIVER SYSTEM INITIALIZATION ===
     device_manager_init();
     
     // Enable interrupts after all drivers are initialized
     sti();
 
     // Find and set global pointers for legacy compatibility
-    device_t* rtc_dev = device_find_by_name("rtc");
-    if (rtc_dev && rtc_dev->initialized) {
-        rtc_set_global(rtc_dev);
-        kprint_rtc_init_string();
-    }
+    // (RTC is already set by early init)
     
     kprint_gdt_init_string();
 
@@ -216,4 +206,5 @@ void kmain(void)
     scheduler();
 
     halt();
+
 }

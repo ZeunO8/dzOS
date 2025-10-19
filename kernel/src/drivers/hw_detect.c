@@ -1,3 +1,4 @@
+// hw_detect.c - Updated to skip already-registered devices
 #include "hw_detect.h"
 #include "device_manager.h"
 #include "common/printf.h"
@@ -11,9 +12,12 @@ int hw_detect_platform_devices(void) {
     
     int found = 0;
     
-    // Register RTC as a platform device
+    // Register RTC as a platform device (may already be registered by early init)
     if (device_register_platform("rtc", DRIVER_CLASS_MISC) == 0) {
-        ktprintf("[HW_DETECT] Found RTC (platform device)\n");
+        // Only print if we actually registered it (not already present)
+        if (!device_find_by_name("rtc")->initialized) {
+            ktprintf("[HW_DETECT] Found RTC (platform device)\n");
+        }
         found++;
     }
     
@@ -22,9 +26,6 @@ int hw_detect_platform_devices(void) {
         ktprintf("[HW_DETECT] Found serial port COM1 (platform device)\n");
         found++;
     }
-    
-    // Framebuffer will be registered differently (needs Limine data)
-    // We'll handle it in a special way
     
     ktprintf("[HW_DETECT] Found %d platform devices\n", found);
     return found;

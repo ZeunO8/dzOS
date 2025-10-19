@@ -8,16 +8,72 @@
 
 static device_manager_t g_dm = {0};
 
+extern void register_rtc_driver(void);
+extern void register_serial_driver(void);
+extern void rtc_set_global(device_t* dev);
+
 extern void os_trust_init(void);
 extern void register_builtin_drivers(void);
 
 // Framebuffer request (external from kernel.c)
 extern const struct limine_framebuffer_response* get_framebuffer_response(void);
 
-void device_manager_init(void) {
-    memset(&g_dm, 0, sizeof(g_dm));
+// Register only critical early-boot drivers
+void register_early_drivers(void) {
+    ktprintf("[DRIVER] Registering early drivers...\n");
+    register_rtc_driver();
+    // Optionally register serial here if you need it early
+    // register_serial_driver();
+    ktprintf("[DRIVER] Early drivers registered\n");
+}
 
-    ktprintf("=== Device Manager Initialization ===\n");
+// Early init - called before main device manager init
+void device_manager_early_init(void) {
+    memset(&g_dm, 0, sizeof(g_dm));
+    
+    ktprintf("=== Early Device Manager Initialization ===\n");
+    
+    // Register RTC platform device
+    if (device_register_platform("rtc", DRIVER_CLASS_MISC) == 0) {
+        ktprintf("[EARLY] Registered RTC platform device\n");
+    }
+    
+    // Register early drivers (RTC driver)
+    register_early_drivers();
+    
+    // Find and match RTC device
+    device_t* rtc_dev = device_find_by_name("rtc");
+    if (rtc_dev) {
+        if (device_driver_match_and_bind(rtc_dev) == 0) {
+            // Probe
+            if (rtc_dev->drv && rtc_dev->drv->ops.probe) {
+                rtc_dev->drv->ops.probe(rtc_dev);
+            }
+            
+            // Initialize
+            if (rtc_dev->drv && rtc_dev->drv->ops.init) {
+                if (rtc_dev->drv->ops.init(rtc_dev) == 0) {
+                    rtc_dev->initialized = true;
+                    rtc_set_global(rtc_dev);
+                    ktprintf("[EARLY] RTC initialized successfully\n");
+                }
+            }
+        }
+    }
+    
+    g_dm.initialized = true;
+    
+    ktprintf("=== Early Device Manager Initialization Complete ===\n\n");
+}
+
+void device_manager_init(void) {
+    // Skip device manager initialization if already done early
+    if (g_dm.initialized) {
+        ktprintf("=== Device Manager (Full Initialization) ===\n");
+    } else {
+        memset(&g_dm, 0, sizeof(g_dm));
+        ktprintf("=== Device Manager Initialization ===\n");
+    }
     
     // Initialize hardware detection subsystem
     hw_detect_init();
@@ -28,14 +84,14 @@ void device_manager_init(void) {
     hw_detect_pci_scan();
     hw_detect_platform_devices();
     
-    // Register framebuffer if available (special case - needs Limine data)
+    // Register framebuffer if available
     const struct limine_framebuffer_response* fb_resp = get_framebuffer_response();
     if (fb_resp && fb_resp->framebuffer_count > 0) {
         struct limine_framebuffer *fb = fb_resp->framebuffers[0];
         device_register_framebuffer(fb);
     }
     
-    // Register all builtin drivers
+    // Register all builtin drivers (skip if early init already registered some)
     ktprintf("--- Driver Registration Phase ---\n");
     register_builtin_drivers();
     
@@ -105,6 +161,12 @@ int device_register_from_ps2(const ps2_device_info_t* hw_info) {
 int device_register_platform(const char* name, driver_class_t class_) {
     if (g_dm.device_count >= MAX_DEVICES) return -1;
     
+    // Check if device already exists
+    device_t* existing = device_find_by_name(name);
+    if (existing) {
+        return 0; // Already registered
+    }
+    
     device_t* dev = &g_dm.devices[g_dm.device_count];
     
     dev->name = name;
@@ -158,7 +220,12 @@ device_t* device_find_by_name(const char* name) {
 int driver_register_verified(driver_t* drv) {
     if (g_dm.driver_count >= MAX_DEVICES) return -1;
     
-    // TODO: Verify signature if manifest exists
+    // Check if driver already registered
+    for (size_t i = 0; i < g_dm.driver_count; i++) {
+        if (g_dm.drivers[i] == drv) {
+            return 0; // Already registered
+        }
+    }
     
     g_dm.drivers[g_dm.driver_count] = drv;
     g_dm.driver_count++;
@@ -181,14 +248,15 @@ int driver_unregister(driver_t* drv) {
 }
 
 int device_driver_match_and_bind(device_t* dev) {
+    // Skip if already bound
+    if (dev->drv) return 0;
+    
     for (size_t i = 0; i < g_dm.driver_count; i++) {
         driver_t* drv = g_dm.drivers[i];
         
-        // Check if driver matches device bus and class
-        if (drv->bus != dev->bus  || drv->class_ != dev->class_)
+        if (drv->bus != dev->bus || drv->class_ != dev->class_)
             continue;
         
-        // Found a match - attach driver
         dev->drv = drv;
         ktprintf("[DEVICE] Matched device '%s' to driver '%s'\n", 
                  dev->name ? dev->name : "unnamed", drv->name);
@@ -207,10 +275,15 @@ void device_manager_probe_all(void) {
     for (size_t i = 0; i < g_dm.device_count; i++) {
         device_t* dev = &g_dm.devices[i];
         
+        // Skip already initialized devices (from early init)
+        if (dev->initialized) {
+            matched++;
+            continue;
+        }
+        
         if (device_driver_match_and_bind(dev) == 0) {
             matched++;
             
-            // Call probe if driver has one
             if (dev->drv && dev->drv->ops.probe) {
                 int result = dev->drv->ops.probe(dev);
                 if (result != 0) {
@@ -232,6 +305,12 @@ void device_manager_init_all(void) {
     int initialized = 0;
     for (size_t i = 0; i < g_dm.device_count; i++) {
         device_t* dev = &g_dm.devices[i];
+        
+        // Skip already initialized devices
+        if (dev->initialized) {
+            initialized++;
+            continue;
+        }
         
         if (!dev->drv) continue;
         

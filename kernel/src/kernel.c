@@ -150,6 +150,10 @@ void kmain(void)
 
     // Memory initialization
     init_mem(hhdm_request.response->offset, memmap_request.response);
+
+    // === EARLY DEVICE INITIALIZATION (RTC for timestamps) ===
+    device_manager_early_init();
+    
     vmm_init_kernel(*kernel_address_request.response);
     kmalloc_init();
 
@@ -161,9 +165,6 @@ void kmain(void)
     // Initialize interrupt controller
     ioapic_init(&rsdp_request);
     lapic_init();
-
-    // === EARLY DEVICE INITIALIZATION (RTC for timestamps) ===
-    device_manager_early_init();
     
     // Now we have timestamps! This will show actual time
     kprint_rtc_init_string();

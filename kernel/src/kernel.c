@@ -132,20 +132,14 @@ extern void nvme_set_global(device_t* dev);
 
 void kmain(void)
 {
-    if (LIMINE_BASE_REVISION_SUPPORTED == false)
+    set_output_mode(OUTPUT_SERIAL);
+
+    if (LIMINE_BASE_REVISION_SUPPORTED == false) {
+        kprintf("Limine Base Revision not Supported");
         halt();
+    }
 
     fpu_enable();
-
-    // Early serial init for debug output (before driver system)
-    outb(0x3f8 + 2, 0);
-    outb(0x3f8 + 3, 0b10000000);
-    outb(0x3f8 + 0, 115200 / 9600);
-    outb(0x3f8 + 1, 0);
-    outb(0x3f8 + 3, 0b00000011);
-    outb(0x3f8 + 4, 0);
-
-    set_output_mode(OUTPUT_SERIAL);
 
     gdt_init();
     cpu_local_setup();

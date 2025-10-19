@@ -12,9 +12,21 @@ static const char *digits = "0123456789abcdef";
 
 static enum output_mode current_output = OUTPUT_SERIAL;
 
+static bool serial_initialized = false;
+
 void set_output_mode(enum output_mode mode)
 {
     current_output = mode;
+    if (current_output == OUTPUT_SERIAL && !serial_initialized) {
+      // Early serial init for debug output (before driver system)
+      outb(0x3f8 + 2, 0);
+      outb(0x3f8 + 3, 0b10000000);
+      outb(0x3f8 + 0, 115200 / 9600);
+      outb(0x3f8 + 1, 0);
+      outb(0x3f8 + 3, 0b00000011);
+      outb(0x3f8 + 4, 0);
+      serial_initialized = true;
+    }
 }
 
 void kputc(char c)

@@ -2,7 +2,7 @@ add_custom_command(TARGET ${DZOS_KERNEL_FINAL_TARGET} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/isoroot
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/isoroot/boot
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/${DZOS_KERNEL_NAME} ${CMAKE_BINARY_DIR}/isoroot/boot/${DZOS_KERNEL_NAME}
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/dzOS.bmp ${CMAKE_BINARY_DIR}/isoroot/boot/dzOS.bmp
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/dzOS.png ${CMAKE_BINARY_DIR}/isoroot/boot/dzOS.png
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/limine/limine.conf ${CMAKE_BINARY_DIR}/isoroot/boot/limine/limine.conf
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/limine/limine-bios-cd.bin ${CMAKE_BINARY_DIR}/isoroot/limine-bios-cd.bin
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/limine/limine-uefi-cd.bin ${CMAKE_BINARY_DIR}/isoroot/limine-uefi-cd.bin

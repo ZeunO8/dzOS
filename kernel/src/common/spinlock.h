@@ -13,6 +13,7 @@ struct spinlock {
     uint32_t holding_cpu;
 };
 
+void enable_spinlocks(bool enabled);
 void spinlock_lock(struct spinlock *lock);
 void spinlock_unlock(struct spinlock *lock);
 bool spinlock_locked(struct spinlock *lock);

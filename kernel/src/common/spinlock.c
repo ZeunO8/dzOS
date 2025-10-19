@@ -6,6 +6,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+bool spinlocks_enabled = false;
+
+void enable_spinlocks(bool enabled)
+{
+  spinlocks_enabled = enabled;
+}
+
 /**
  * Saves if the interrupts where enabled before and disables them
  */
@@ -49,6 +56,8 @@ static bool this_cpu_holding_lock(const struct spinlock *lock)
  */
 void spinlock_lock(struct spinlock *lock)
 {
+    if (!spinlocks_enabled)
+        return;
     // Disable interrupts
     save_and_disable_interrupts();
     // Deadlock checking
@@ -68,6 +77,8 @@ void spinlock_lock(struct spinlock *lock)
  */
 void spinlock_unlock(struct spinlock *lock)
 {
+    if (!spinlocks_enabled)
+        return;
     // Remember that we have disabled interrupts. So we should still have this
     // lock
     if (!this_cpu_holding_lock(lock))

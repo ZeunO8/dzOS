@@ -5,12 +5,18 @@
 /**
  * Lock the lock inside this condvar.
  */
-void condvar_lock(struct condvar *cond) { spinlock_lock(&cond->lock); }
+void condvar_lock(struct condvar *cond)
+{
+  spinlock_lock(&cond->lock);
+}
 
 /**
  * Unlock the lock inside this condvar.
  */
-void condvar_unlock(struct condvar *cond) { spinlock_unlock(&cond->lock); }
+void condvar_unlock(struct condvar *cond)
+{
+  spinlock_unlock(&cond->lock);
+}
 
 /**
  * This function atomically unlocks cond.lock and suspends execution of the

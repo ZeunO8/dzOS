@@ -192,7 +192,7 @@ void lapic_init(void)
     lapic_write(LAPIC_EOI, 0);
     lapic_write(LAPIC_TPR, 0);
 
-    ktprintf("lapic initialized (ID: %d)\n", lapic_read(LAPIC_ID) >> 24);
+    ktprintf("LAPIC initialized (ID: %d)\n", lapic_read(LAPIC_ID) >> 24);
 }
 
 void lapic_write(uint32_t off, uint32_t val)

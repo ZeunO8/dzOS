@@ -163,10 +163,5 @@ void gdt_init(void)
   reload_segments(&gdt);
   // kprintf("GDT initialized\n");
   int rem = GDT_INIT_STRING_SIZE - 1;
-  ctprintf(gdt_init_string, &rem, "GDT initialized\n");
-}
-
-void kprint_gdt_init_string()
-{
-    kprintf(gdt_init_string);
+  ktprintf(gdt_init_string, &rem, "GDT initialized\n");
 }

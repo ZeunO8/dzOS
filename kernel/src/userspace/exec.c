@@ -6,8 +6,8 @@
 #include "fs/dzfs.h"
 #include "fs/device.h"
 #include "fs/fs.h"
-#include "../include/exec.h"
-#include "../include/file.h"
+#include <zos/exec.h>
+#include <zos/file.h>
 #include "mem/mem.h"
 #include "mem/vmm.h"
 #include "mem/kmalloc.h"

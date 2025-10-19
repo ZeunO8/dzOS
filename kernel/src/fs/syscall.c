@@ -1,10 +1,10 @@
 // syscall.c
-#include "../include/syscall.h"
+#include <zos/syscall.h>
 #include "dzfs.h"
 #include "common/printf.h"
 #include "device.h"
 #include "file.h"
-#include "../include/file.h"
+#include <zos/file.h>
 #include "mem/vmm.h"
 #include "userspace/proc.h"
 #include "mem/kmalloc.h"

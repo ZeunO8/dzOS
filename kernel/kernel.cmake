@@ -11,7 +11,7 @@ target_compile_options(kernel_objs_c PRIVATE
     -Wc23-extensions
 )
 set_optimizations(kernel_objs_c)
-target_include_directories(kernel_objs_c PRIVATE ${DZOS_KERNEL_DIR} ${DZOS_KERNEL_SRC_DIR} ${DZOS_XXD_DIR} ${flanterm_SOURCE_DIR}/src)
+target_include_directories(kernel_objs_c PRIVATE ${DZOS_KERNEL_DIR} ${DZOS_KERNEL_INC_DIR} ${DZOS_KERNEL_SRC_DIR} ${DZOS_XXD_DIR} ${flanterm_SOURCE_DIR}/src)
 
 add_library(kernel_objs_s OBJECT ${KERNEL_ASM_SOURCES})
 target_compile_options(kernel_objs_s PRIVATE 
@@ -22,7 +22,7 @@ target_compile_options(kernel_objs_s PRIVATE
     -mcmodel=kernel 
     -mno-red-zone
 )
-target_include_directories(kernel_objs_s PRIVATE ${DZOS_KERNEL_DIR} ${DZOS_KERNEL_SRC_DIR} ${DZOS_XXD_DIR})
+target_include_directories(kernel_objs_s PRIVATE ${DZOS_KERNEL_DIR} ${DZOS_KERNEL_INC_DIR} ${DZOS_KERNEL_SRC_DIR} ${DZOS_XXD_DIR})
 
 foreach(USRSPC_NAME IN LISTS USERSPACE_DEPENDENCIES)
     add_dependencies(kernel_objs_c ${USRSPC_NAME})

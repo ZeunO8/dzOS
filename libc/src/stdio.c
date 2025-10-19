@@ -4,7 +4,7 @@
  */
 
 #include "stdio.h"
-#include "../../kernel/include/file.h"
+#include <zos/file.h>
 #include "stdlib.h"
 #include "string.h"
 #include "usyscalls.h"

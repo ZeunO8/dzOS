@@ -27,7 +27,7 @@ macro(add_userspace_prog NAME)
     )
 
     target_link_libraries(${NAME} PRIVATE c)
-    target_include_directories(${NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR} ${LIBC_INCLUDE_DIR} ${INC})
+    target_include_directories(${NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR} ${DZOS_KERNEL_INC_DIR} ${LIBC_INCLUDE_DIR} ${INC})
     target_link_options(${NAME} PRIVATE
         -Wl,--whole-archive $<TARGET_FILE:c> -Wl,--no-whole-archive
     )

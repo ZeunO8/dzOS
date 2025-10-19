@@ -1,4 +1,4 @@
-#include "include/sysnum.h"
+#include <zos/sysnum.h>
 #include <stddef.h>
 #include <stdint.h>
 #include "userspace/proc.h"
@@ -52,7 +52,7 @@ uint64_t invoke_syscall(uint64_t number, uint64_t arg1, uint64_t arg2, uint64_t 
         return FN(); \
     }
 
-#include "include/syscall.inc"
+#include "zos/syscall.inc"
 
 #undef GEN_SYS_0U
 #undef GEN_SYS_1U

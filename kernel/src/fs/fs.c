@@ -5,7 +5,7 @@
 #include "common/spinlock.h"
 #include "device/nvme.h"
 #include "device/rtc.h"
-#include "../include/file.h"
+#include <zos/file.h>
 #include "mem/mem.h"
 
 // Hardcoded values of GPT table which we make.

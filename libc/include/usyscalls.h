@@ -11,7 +11,7 @@
 #define GEN_SYS_3U(RET, NAME, U, ARG1, ARG2, ARG3) RET NAME(ARG1, ARG2, ARG3)
 #define GEN_SYS_FN(NAME, U, FN) uint64_t NAME()
 #define GEN_SYS_RFN1(NAME, U, FN, RET, ARG1) RET NAME(ARG1)
-#include "include/syscall.inc"
+#include <zos/syscall.inc>
 #undef GEN_SYS_0U
 #undef GEN_SYS_2U
 #undef GEN_SYS_1U

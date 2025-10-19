@@ -1,5 +1,5 @@
 #pragma once
-#include "../include/syscall.h"
+#include <zos/syscall.h>
 
 typedef long long ssize_t;
 

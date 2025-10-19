@@ -1,5 +1,5 @@
 #include "file.h"
-#include "../../include/file.h"
+#include <zos/file.h>
 #include "dzfs.h"
 #include "common/printf.h"
 #include "userspace/proc.h"

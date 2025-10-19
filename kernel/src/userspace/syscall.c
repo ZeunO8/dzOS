@@ -2,7 +2,7 @@
 #include "cpu/gdt.h"
 #include "cpu/asm.h"
 #include "common/printf.h"
-#include "include/syscall.h"
+#include <zos/syscall.h>
 #include "device/rtc.h"
 #include "fs/fs.h"
 #include "userspace/proc.h"
@@ -46,7 +46,7 @@ uint64_t syscall_c(uint64_t syscall_number, uint64_t a1, uint64_t a2,
     #define GEN_SYS_3U(RET, NAME, U, ARG1, ARG2, ARG3) case SYSCALL_##U: return (uint64_t)sys_##NAME((ARG1)a1, (ARG2)a2, (ARG3)a3)
     #define GEN_SYS_FN(NAME, U, FN) case SYSCALL_##U: return FN()
     #define GEN_SYS_RFN1(NAME, U, FN, RET, ARG1) case SYSCALL_##U: return (uint64_t)FN((ARG1)a1)
-    #include "include/syscall.inc"
+    #include <zos/syscall.inc>
     #undef GEN_SYS_0U
     #undef GEN_SYS_1U
     #undef GEN_SYS_FN1

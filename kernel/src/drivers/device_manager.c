@@ -60,7 +60,7 @@ void device_manager_early_init(void) {
     
     g_dm.initialized = true;
     
-    ktprintf("=== Early Device Manager Initialization Complete ===\n\n");
+    ktprintf("=== Early Device Manager Initialization Complete ===\n");
 }
 
 void device_manager_init(void) {
@@ -100,7 +100,7 @@ void device_manager_init(void) {
     ktprintf("--- Device Initialization Phase ---\n");
     device_manager_init_all();
     
-    ktprintf("=== Device Manager Initialization Complete ===\n\n");
+    ktprintf("=== Device Manager Initialization Complete ===\n");
 }
 
 int device_register_from_pci(const pci_device_info_t* hw_info) {

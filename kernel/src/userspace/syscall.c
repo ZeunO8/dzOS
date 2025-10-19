@@ -32,8 +32,8 @@ void init_syscall_table(void)
     ktprintf("syscall table initialized\n");
 }
 
-uint64_t syscall_c(uint64_t syscall_number, uint64_t a1, uint64_t a2,
-                   uint64_t a3)
+uint64_t syscall_c(uint64_t a1, uint64_t a2, uint64_t a3,
+                    uint64_t syscall_number)
 {
     switch (syscall_number)
     {

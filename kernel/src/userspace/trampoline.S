@@ -1,53 +1,55 @@
+# trampoline.S
 .section .text
 .intel_syntax noprefix
-.extern process_kstack       # global kernel stack (per CPU if SMP)
+.extern process_kstack
 .global syscall_handler_asm
 .type syscall_handler_asm, @function
 syscall_handler_asm:
-    # -------------------------------
-    # Enter kernel
-    # -------------------------------
-    swapgs                      # switch GS to kernel
-    mov r8, rax                 # syscall number
-    mov r9, rsp                 # user RSP
+    # ---- Enter kernel ----
+    swapgs
 
-    # -------------------------------
-    # Switch to kernel stack
-    # -------------------------------
+    # Save user context that SYSCALL clobbers or we need
+    # rax = syscall number
+    # rcx = user RIP (from SYSCALL)
+    # r11 = user RFLAGS (from SYSCALL)
+    mov r15, rax                # save syscall number
+    mov r14, rcx                # save user RIP
+    mov r13, r11                # save user RFLAGS
+    mov r12, rsp                # save user RSP
+
+    # ---- Switch to kernel stack ----
     mov rsp, process_kstack
-    # ensure 16-byte alignment for variadic calls
-    and rsp, -16
+    and rsp, -16                # keep 16-byte alignment
 
-    # -------------------------------
-    # Save user context on kernel stack
-    # -------------------------------
-    push r9                      # user RSP
-    push r8                      # syscall number
-    push rcx                     # user RIP (from SYSCALL)
-    push r11                     # user RFLAGS
+    # (Optional) save for debugging
+    push r12                    # user RSP
+    push r15                    # syscall number
+    push r14                    # user RIP
+    push r13                    # user RFLAGS
 
-    # -------------------------------
-    # Call C syscall handler
-    # -------------------------------
-    mov rdi, r8                  # rdi = syscall number
-    mov rsi, rdi                 # optional: more args
-    mov rdx, rsi
-    mov rcx, rdx
-    call syscall_c               # kernel runs on kernel stack
+    # ---- Call C handler ----
+    # On SYSCALL entry:
+    #   rdi=a1, rsi=a2, rdx=a3, r10=a4, r8=a5, r9=a6 (Linux-ABI style)
+    # For a normal C call (SysV):
+    #   rdi, rsi, rdx, rcx, r8, r9
+    # We only use a1..a3 plus syscall_number as the 4th arg.
+    # rdi,rsi,rdx already good; set rcx to the syscall number.
+    mov rcx, r15
 
-    # -------------------------------
-    # Restore user context for return to user
-    # -------------------------------
-    pop r11                      # restore RFLAGS
-    pop rcx                      # restore RIP
-    pop r8                       # restore syscall number
-    pop rsp                       # restore user RSP to r9
+    call syscall_c
 
-    # -------------------------------
-    # Return to user
-    # -------------------------------
+    # ---- Restore for SYSRET ----
+    pop r13                     # user RFLAGS
+    pop r14                     # user RIP
+    pop r15                     # syscall number (unused on return)
+    pop r12                     # user RSP
+
+    mov r11, r13                # RFLAGS -> r11
+    mov rcx, r14                # RIP    -> rcx
+    mov rsp, r12                # user RSP
+
+    # rax = return value from syscall_c
     swapgs
     sysretq
-
 
 .section .note.GNU-stack

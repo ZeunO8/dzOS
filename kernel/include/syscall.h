@@ -25,3 +25,7 @@
 #undef GEN_SYS_3U
 #undef GEN_SYS_FN
 #undef GEN_SYS_RFN1
+
+char *validate_user_string(const char *user_str, size_t max_len);
+bool validate_user_read(const void *ptr, size_t len);
+bool validate_user_write(void *ptr, size_t len);

@@ -10,7 +10,12 @@
 #include "../include/file.h"
 #include "mem/mem.h"
 #include "mem/vmm.h"
+#include "mem/kmalloc.h"
 #include "userspace/proc.h"
+
+char *validate_user_string(const char *user_str, size_t max_len);
+bool validate_user_read(const void *ptr, size_t len);
+bool validate_user_write(void *ptr, size_t len);
 
 // "\x7FELF" in little endian
 #define ELF_MAGIC 0x464C457FU
@@ -112,7 +117,49 @@ static int load_segment(pagetable_t pagetable, struct fs_inode *ip, uint64_t va,
 
 uint64_t sys_exec(const char* path, const char* args[])
 {
-    return proc_exec(path, args, my_process()->working_directory);
+	// Validate path
+	char *kernel_path = validate_user_string(path, MAX_PATH_LENGTH);
+	if (!kernel_path) {
+		return -1;
+	}
+
+	// Validate args array pointer
+	if (args && !validate_user_read(args, sizeof(char *) * MAX_ARGV)) {
+		kmfree(kernel_path);
+		return -1;
+	}
+
+	// Copy args to kernel space
+	char *kernel_args[MAX_ARGV] = {NULL};
+	if (args) {
+		for (int i = 0; i < MAX_ARGV && args[i]; i++) {
+			kernel_args[i] = validate_user_string(args[i], MAX_PATH_LENGTH);
+			if (!kernel_args[i]) {
+				// Cleanup already copied args
+				for (int j = 0; j < i; j++) {
+					kmfree(kernel_args[j]);
+				}
+				kmfree(kernel_path);
+				return -1;
+			}
+		}
+	}
+
+	// Execute with validated arguments
+	const char *kernel_args_const[MAX_ARGV];
+	for (int i = 0; i < MAX_ARGV; i++) {
+		kernel_args_const[i] = kernel_args[i];
+	}
+
+	uint64_t result = proc_exec(kernel_path, kernel_args_const, my_process()->working_directory);
+
+	// Cleanup
+	kmfree(kernel_path);
+	for (int i = 0; i < MAX_ARGV && kernel_args[i]; i++) {
+		kmfree(kernel_args[i]);
+	}
+
+	return result;
 }
 
 /**

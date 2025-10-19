@@ -21,6 +21,9 @@ struct fs_inode {
   uint32_t reference_count;
 };
 
+// Maximum path length to prevent DoS
+#define MAX_PATH_LENGTH 4096
+
 struct fs_inode *fs_open(const char *path, const struct fs_inode *relative_to,
                          uint32_t flags);
 void fs_close(struct fs_inode *inode);

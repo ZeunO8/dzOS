@@ -128,6 +128,26 @@ void *vmm_map_physical(uint64_t phys_start, uint64_t phys_end);
 uint64_t vmm_allocate_proc_kernel_stack(uint64_t i);
 void vmm_free_proc_kernel_stack(uint64_t i);
 
+/**
+ * Validate that a user pointer points to valid, mapped, user-accessible memory.
+ * @param pagetable The page table to check against
+ * @param ptr User pointer to validate
+ * @param len Length of the memory region
+ * @param writable If true, also check that memory is writable
+ * @return true if valid, false otherwise
+ */
+bool vmm_validate_user_ptr(pagetable_t pagetable, const void *ptr, size_t len, bool writable);
+
+/**
+ * Validate and copy a null-terminated string from user space.
+ * @param pagetable The page table to check against
+ * @param user_str User pointer to string
+ * @param kernel_buf Kernel buffer to copy into
+ * @param max_len Maximum length to copy (including null terminator)
+ * @return Number of bytes copied (excluding null), or -1 on error
+ */
+int vmm_copy_user_string(pagetable_t pagetable, const char *user_str, char *kernel_buf, size_t max_len);
+
 static inline void vmm_invalidate_page(uint64_t va)
 {
     __asm__ volatile("invlpg (%0)" ::"r"(va) : "memory");

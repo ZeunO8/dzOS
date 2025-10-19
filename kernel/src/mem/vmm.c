@@ -730,3 +730,94 @@ void vmm_free_proc_kernel_stack(uint64_t i)
 		kernel_remaining -= PAGE_SIZE;
 	}
 }
+
+/**
+ * Check if a virtual address range is valid for user access.
+ * Ensures:
+ * 1. Address is in user space range
+ * 2. All pages are mapped and present
+ * 3. All pages have user bit set
+ * 4. If writable=true, all pages are writable
+ */
+bool vmm_validate_user_ptr(pagetable_t pagetable, const void *ptr, size_t len, bool writable)
+{
+	if (!ptr || len == 0) return false;
+
+	uintptr_t start = (uintptr_t)ptr;
+	uintptr_t end = start + len;
+
+	// Check for overflow
+	if (end < start) return false;
+
+	// Must be in user space
+	if (start >= USERSPACE_VA_MAX || end > USERSPACE_VA_MAX) return false;
+	if (start < USERSPACE_VA_MIN) return false;
+
+	// Check each page in the range
+	uintptr_t page_start = PAGE_ROUND_DOWN(start);
+	uintptr_t page_end = PAGE_ROUND_UP(end);
+
+	for (uintptr_t va = page_start; va < page_end; va += PAGE_SIZE) {
+		pte_t *pte = walk(pagetable, va, false, false);
+		if (!pte) return false;
+		if (!pte_is_present(*pte)) return false;
+		if (!pte_is_user(*pte)) return false;
+		if (writable && !pte_is_writable(*pte)) return false;
+	}
+
+	return true;
+}
+
+/**
+ * Safely copy a string from user space to kernel space.
+ * Validates each page as we cross page boundaries.
+ */
+int vmm_copy_user_string(pagetable_t pagetable, const char *user_str, char *kernel_buf, size_t max_len)
+{
+	if (!user_str || !kernel_buf || max_len == 0) return -1;
+
+	uintptr_t user_addr = (uintptr_t)user_str;
+	
+	// Must start in user space
+	if (user_addr >= USERSPACE_VA_MAX || user_addr < USERSPACE_VA_MIN) return -1;
+
+	size_t copied = 0;
+	uintptr_t current_page = PAGE_ROUND_DOWN(user_addr);
+	bool current_page_valid = false;
+
+	while (copied < max_len - 1) {
+		uintptr_t va = user_addr + copied;
+
+		// Check if we crossed into a new page
+		if (PAGE_ROUND_DOWN(va) != current_page) {
+			current_page = PAGE_ROUND_DOWN(va);
+			current_page_valid = false;
+		}
+
+		// Validate page on first access
+		if (!current_page_valid) {
+			pte_t *pte = walk(pagetable, current_page, false, false);
+			if (!pte || !pte_is_present(*pte) || !pte_is_user(*pte)) {
+				return -1;
+			}
+			current_page_valid = true;
+		}
+
+		// Get physical address and read character
+		uint64_t pa = vmm_walkaddr(pagetable, va, true);
+		if (pa == 0) return -1;
+
+		char c = *(char *)P2V(pa);
+		kernel_buf[copied] = c;
+
+		if (c == '\0') {
+			return (int)copied; // Success - found null terminator
+		}
+
+		copied++;
+	}
+
+	// String too long - truncate and null-terminate
+	kernel_buf[max_len - 1] = '\0';
+	return -1; // Indicate truncation
+}

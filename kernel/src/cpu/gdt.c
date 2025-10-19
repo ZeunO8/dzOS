@@ -144,8 +144,6 @@ void tss_init_and_load(void)
  *
  * Also sets all segment registers except SS and CS to zero.
  */
-#define GDT_INIT_STRING_SIZE 128
-char gdt_init_string[GDT_INIT_STRING_SIZE] = {0};
 void gdt_init(void)
 {
   // Add TSS to GDT
@@ -161,7 +159,5 @@ void gdt_init(void)
       .ptr = (uint64_t)&gdt_entries[0],
   };
   reload_segments(&gdt);
-  // kprintf("GDT initialized\n");
-  int rem = GDT_INIT_STRING_SIZE - 1;
-  ktprintf(gdt_init_string, &rem, "GDT initialized\n");
+  ktprintf("GDT initialized\n");
 }

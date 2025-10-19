@@ -329,23 +329,7 @@ uint64_t proc_exec(const char *path, const char *args[], struct fs_inode *workin
     proc->ctx.rsp = sp; // User stack top
     proc->ctx.rflags = 0x202; // Interrupt enable flag
 
-
-    // Optional: clear all other registers
-    proc->ctx.rax = 0;
-    proc->ctx.rbx = 0;
-    proc->ctx.rcx = 0;
-    proc->ctx.rdx = 0;
-    proc->ctx.rsi = 0;
-    proc->ctx.rdi = 0;
-    proc->ctx.r8 = 0;
-    proc->ctx.r9 = 0;
-    proc->ctx.r10 = 0;
-    proc->ctx.r11 = 0;
-    proc->ctx.r12 = 0;
-    proc->ctx.r13 = 0;
-    proc->ctx.r14 = 0;
-    proc->ctx.r15 = 0;
-    proc->ctx.rbp = 0;
+    proc_init_stack_canary(proc);
 
     // Handle working directory
     fs_close(proc_inode);

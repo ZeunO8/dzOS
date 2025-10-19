@@ -108,6 +108,7 @@ uint32_t rand_range(uint32_t max)
 
 void km_test()
 {
+    ktprintf("km_test begin\n");
     void *a = kcmalloc(10);
     void *b = kcmalloc(12);
     void *c = kcmalloc(256);
@@ -120,6 +121,7 @@ void km_test()
     kmfree(b);
     kmfree(c);
     kmfree(d);
+    ktprintf("km_test end\n");
 }
 
 extern device_t* device_find_by_name(const char* name);
@@ -147,15 +149,15 @@ void kmain(void)
 
     gdt_init();
     cpu_local_setup();
-
+    
     // Memory initialization
     init_mem(hhdm_request.response->offset, memmap_request.response);
-
-    // === EARLY DEVICE INITIALIZATION (RTC for timestamps) ===
-    device_manager_early_init();
     
     vmm_init_kernel(*kernel_address_request.response);
     kmalloc_init();
+
+    // === EARLY DEVICE INITIALIZATION (RTC for timestamps) ===
+    device_manager_early_init();
 
     km_test();
 
@@ -166,19 +168,11 @@ void kmain(void)
     ioapic_init(&rsdp_request);
     lapic_init();
     
-    // Now we have timestamps! This will show actual time
-    kprint_rtc_init_string();
-    
     // === FULL DRIVER SYSTEM INITIALIZATION ===
     device_manager_init();
     
     // Enable interrupts after all drivers are initialized
     sti();
-
-    // Find and set global pointers for legacy compatibility
-    // (RTC is already set by early init)
-    
-    kprint_gdt_init_string();
 
     device_t* serial_dev = device_find_by_name("serial");
     if (serial_dev && serial_dev->initialized) {
@@ -203,6 +197,8 @@ void kmain(void)
     // Userspace initialization
     scheduler_init();
     init_syscall_table();
+
+    enable_spinlocks(true);
 
     scheduler();
 

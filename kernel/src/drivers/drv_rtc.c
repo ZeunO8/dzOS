@@ -363,14 +363,6 @@ void rtc_set_global(device_t *dev) {
     g_rtc_dev = dev;
 }
 
-void kprint_rtc_init_string(void) {
-    if (g_rtc_dev && g_rtc_dev->driver_data) {
-        rtc_device_data_t *data = (rtc_device_data_t *)g_rtc_dev->driver_data;
-        ktprintf("TSC Frequency set to %llu Hz (%f MHz) and initial RTC is %llu\n",
-                 data->tsc_frequency, data->tsc_frequency / 1e6, data->initial_rtc);
-    }
-}
-
 uint64_t rtc_now(void) {
     if (!g_rtc_dev || !g_rtc_dev->driver_data) return 0;
     uint64_t result;

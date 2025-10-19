@@ -12,4 +12,3 @@ uint64_t rtc_now(void);
 double rtc_now_seconds(void);
 uint64_t rtc_now_us(void);
 void delay_ms(uint64_t ms);
-void kprint_rtc_init_string();

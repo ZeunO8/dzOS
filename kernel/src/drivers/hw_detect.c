@@ -11,7 +11,7 @@ int hw_detect_platform_devices(void) {
     ktprintf("[HW_DETECT] Scanning platform devices...\n");
     
     int found = 0;
-    
+
     // Register RTC as a platform device (may already be registered by early init)
     if (device_register_platform("rtc", DRIVER_CLASS_MISC) == 0) {
         // Only print if we actually registered it (not already present)

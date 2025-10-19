@@ -32,11 +32,8 @@ void device_manager_early_init(void) {
     memset(&g_dm, 0, sizeof(g_dm));
     
     ktprintf("=== Early Device Manager Initialization ===\n");
-    
-    // Register RTC platform device
-    if (device_register_platform("rtc", DRIVER_CLASS_MISC) == 0) {
-        ktprintf("[EARLY] Registered RTC platform device\n");
-    }
+
+    hw_detect_platform_devices();
     
     // Register early drivers (RTC driver)
     register_early_drivers();
@@ -82,13 +79,13 @@ void device_manager_init(void) {
     ktprintf("--- Hardware Detection Phase ---\n");
     hw_detect_ps2_scan();
     hw_detect_pci_scan();
-    hw_detect_platform_devices();
     
     // Register framebuffer if available
     const struct limine_framebuffer_response* fb_resp = get_framebuffer_response();
-    if (fb_resp && fb_resp->framebuffer_count > 0) {
-        struct limine_framebuffer *fb = fb_resp->framebuffers[0];
-        device_register_framebuffer(fb);
+    if (fb_resp) {
+        ktprintf("[HW_DETECT] Found %i framebuffer(s)\n", fb_resp->framebuffer_count);
+        for (int i = 0; i < fb_resp->framebuffer_count; i++)
+            device_register_framebuffer(fb_resp->framebuffers[i]);
     }
     
     // Register all builtin drivers (skip if early init already registered some)

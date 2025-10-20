@@ -293,8 +293,14 @@ uint64_t proc_exec(const char *path, const char *args[], struct fs_inode *workin
     uint64_t argc64 = argc;
     vmm_memcpy(proc->pagetable, sp, &argc64, 8, true);
 
-    // Align to 16 bytes (SysV ABI)
-    sp &= ~0xF;
+    // Align to 16 bytes (SysV ABI) and adjust for no caller-return
+    // For _start entry there is no call return address on the stack.
+    // SysV requires (%rsp + 8) to be 16-byte aligned at function entry,
+    // so ensure rsp ends with ...8.
+    sp &= ~0xFULL;   // align down to 16
+    sp -= 8;         // simulate a caller return slot
+    uint64_t fake_ret = 0;
+    vmm_memcpy(proc->pagetable, sp, &fake_ret, 8, true);
 
     // Fill context for sysretq transition
     uint64_t entry_virtual = load_bias + elf.entry;

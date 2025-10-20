@@ -71,7 +71,9 @@ void print_int_padded(int fd, long long xx, int base, int sign, int width, char 
 void print_float(int fd, double f, int precision)
 {
   if (f < 0)
-  { print_char(fd, '-'); f = -f; }
+  {
+    print_char(fd, '-'); f = -f;
+  }
   uint64_t int_part = (uint64_t)f;
   double frac_part = f - (double)int_part;
   print_int(fd, int_part, 10, 0);

@@ -1,8 +1,14 @@
 #include "stdlib.h"
 #include "usyscalls.h"
+#include <stdint.h>
 
-void _start(int argc, char** argv) {
-  extern int main(int argc, char *argv[]);
+// Entry point: extract argc/argv from stack per SysV AMD64 ABI
+void _start(void) {
+  extern int main(int, char**);
+  uint64_t *sp;
+  __asm__ volatile("mov %%rsp, %0" : "=r"(sp));
+  int argc = (int)sp[0];
+  char **argv = (char**)&sp[1];
   exit(main(argc, argv));
 }
 

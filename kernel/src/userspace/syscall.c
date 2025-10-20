@@ -36,12 +36,6 @@ void init_syscall_table(void)
 uint64_t syscall_c(uint64_t a1, uint64_t a2, uint64_t a3,
                     uint64_t syscall_number)
 {
-    // Preserve user FPU/SSE state across kernel use of XMM/FP
-    struct process *p = my_process();
-    if (p) {
-        fpu_save((void *)p->additional_data.fpu_state);
-    }
-
     uint64_t ret = 0;
     switch (syscall_number)
     {
@@ -70,9 +64,6 @@ uint64_t syscall_c(uint64_t a1, uint64_t a2, uint64_t a3,
         break;
     }
 
-    // Restore user FPU/SSE state before returning to userspace
-    if (p) {
-        fpu_load((const void *)p->additional_data.fpu_state);
-    }
+    // FPU state will be restored by syscall_handler_asm after we return
     return ret;
 }

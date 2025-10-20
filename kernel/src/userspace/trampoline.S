@@ -23,7 +23,8 @@ syscall_handler_asm:
     push rbp
     push rbx
 
-    # Preserve syscall entry context and arguments in callee-saved regs
+    # CRITICAL: Save syscall context BEFORE any function calls
+    # Store in callee-saved regs to survive function calls
     mov r15, rax                # save syscall number
     mov r14, rcx                # save user RIP
     mov r13, r11                # save user RFLAGS
@@ -31,21 +32,23 @@ syscall_handler_asm:
     mov rbp, rsi                # save arg2 (use rbp as GP, already saved)
     mov rbx, rdx                # save arg3 (use rbx, already saved)
 
-    # Save user FP/SIMD state into current process buffer
-    # (C helper resolves current process and buffer). This may clobber
-    # caller-saved regs, which we have preserved above.
+    # Save user RSP to another callee-saved reg
+    push r10                    # user RSP
+
+    # ---- Save FPU state ----
+    # Call C helper - this may clobber caller-saved regs but NOT r12-r15,rbx,rbp
     call fpu_save_current
 
-    # Restore syscall number, RIP, RFLAGS, and arguments into caller-saved regs
+    # ---- Restore arguments from callee-saved regs ----
+    pop r10                     # restore user RSP
     mov rax, r15                # syscall number
-    mov rcx, r14                # user RIP
-    mov r11, r13                # user RFLAGS
+    mov rcx, r14                # user RIP (will be in rcx for later)
+    mov r11, r13                # user RFLAGS (will be in r11 for later)
     mov rdi, r12                # arg1
     mov rsi, rbp                # arg2
     mov rdx, rbx                # arg3
 
-    # Save minimal return context on kernel stack
-    # Push in order: user RFLAGS, user RIP, syscall number, user RSP
+    # ---- Save minimal return context on kernel stack ----
     push r11                    # user RFLAGS from SYSCALL
     push rcx                    # user RIP from SYSCALL
     push rax                    # syscall number
@@ -58,9 +61,9 @@ syscall_handler_asm:
 
     # ---- Restore for SYSRET ----
     # Restore user FP/SIMD state before returning (preserve rax)
-    mov r15, rax
+    mov r15, rax                # save return value
     call fpu_load_current
-    mov rax, r15
+    mov rax, r15                # restore return value
 
     # Pop minimal return context (preserve rax = syscall return value)
     pop r10                     # user RSP

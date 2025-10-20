@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
     int k = 0;
     for (; i < 239120210; i++) {
         j *= 2;
-        if ((i % 80000000) == 0) {
+        if ((i % 110000000) == 0) {
             uint64_t t = time();
             printf("t(%llu)\n", t);
             double now = (double)t;

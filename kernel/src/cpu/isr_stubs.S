@@ -73,6 +73,7 @@ isr_timer_stub:
     push 0                  # Dummy error code
     push 32                 # Vector number (T_IRQ0)
     
+    # Save all GPRs first
     push rax
     push rbx
     push rcx
@@ -89,9 +90,18 @@ isr_timer_stub:
     push r14
     push r15
     
+    # CRITICAL: Save FPU state BEFORE calling any C code
+    # The C handler may use XMM registers
+    call fpu_save_current
+    
+    # Call scheduler timer handler with interrupt frame pointer
     mov rdi, rsp
     call sched_timer_handler
     
+    # CRITICAL: Restore FPU state AFTER C handler returns
+    call fpu_load_current
+    
+    # Restore all GPRs
     pop r15
     pop r14
     pop r13
@@ -110,10 +120,5 @@ isr_timer_stub:
     
     add rsp, 16
     iretq
-
-# You can create more as needed
-# ISR_NOERRCODE 32    # IRQ0 - Timer
-# ISR_NOERRCODE 34    # IRQ2
-# etc.
 
 .section .note.GNU-stack

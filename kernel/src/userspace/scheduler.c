@@ -338,8 +338,6 @@ void scheduler_yield(interrupt_frame_t* frame) {
 extern void isr_timer_stub(void);  // Defined in isr_stubs.S
 
 void sched_timer_handler(interrupt_frame_t* frame) {
-    // Preserve user FP/SIMD state across interrupt handling
-    fpu_save_current();
     // Update runqueue clock
     g_runqueue.clock = rtc_now();
     
@@ -348,9 +346,6 @@ void sched_timer_handler(interrupt_frame_t* frame) {
     
     // Call scheduler tick
     scheduler_tick(frame);
-
-    // Restore user FP/SIMD state before returning to user
-    fpu_load_current();
 }
 
 extern device_t* g_rtc_dev;
@@ -465,13 +460,15 @@ void scheduler_start(void) {
                     }
                 }
             }
+            
             if (g_runqueue.total_runnable > 0) {
                 // We recovered runnable tasks; schedule immediately
                 spinlock_unlock(&g_runqueue.lock);
                 continue;
             }
 
-            // No runnable tasks; reclaim any EXITED processes that weren't reclaimed
+            // No runnable tasks; reclaim any EXITED processes
+            bool reclaimed_any = false;
             for (size_t i = 0; i < process_count; ) {
                 struct process* p = processes[i];
                 if (p && p->state == EXITED) {
@@ -486,11 +483,19 @@ void scheduler_start(void) {
                     kfree(p);
                     processes[i] = NULL;
                     coelesce_processes(i);
+                    reclaimed_any = true;
                     // Do not increment i; recheck this index after compaction
                     continue;
                 }
                 i++;
             }
+            
+            if (reclaimed_any) {
+                // Check again if we have runnable processes after reclamation
+                spinlock_unlock(&g_runqueue.lock);
+                continue;
+            }
+            
             spinlock_unlock(&g_runqueue.lock);
             
             // No processes to run - idle
@@ -510,25 +515,6 @@ void scheduler_start(void) {
             }
             
             // Wait for interrupt
-            static int idle_debug_prints = 0;
-            if (idle_debug_prints < 8) {
-                ktprintf("Reached %u runnable; proc_count=%llu, halting.\n",
-                         g_runqueue.total_runnable, (unsigned long long)process_count);
-                for (int pr = 0; pr < SCHED_PRIORITY_LEVELS; pr++) {
-                    ktprintf("  q%u size=%u head=%s tail=%s\n", pr,
-                             g_runqueue.queue_sizes[pr],
-                             g_runqueue.queue_heads[pr] ? "Y" : "N",
-                             g_runqueue.queue_tails[pr] ? "Y" : "N");
-                }
-                for (size_t i = 0; i < process_count; i++) {
-                    if (processes[i]) {
-                        ktprintf("  slot %zu pid=%llu state=%u\n", i,
-                                 (unsigned long long)processes[i]->pid,
-                                 (unsigned)processes[i]->state);
-                    }
-                }
-                idle_debug_prints++;
-            }
             sti();
             __asm__ volatile("hlt");
             cli();
@@ -566,9 +552,6 @@ void scheduler_start(void) {
         // Update GS base for current CPU
         wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)cpu_local());
         
-        // ktprintf("[SCHED] Running PID %llu (prio=%u, timeslice=%lluus)\n",
-        //          next->pid, se->dynamic_priority, se->last_timeslice);
-        
         // Prepare kernel context
         kernel_context.rsp = next->kernel_stack_top;
         kernel_context.kernel_rip = (uint64_t)&&resume_scheduler;
@@ -590,7 +573,6 @@ resume_scheduler:
         condvar_unlock(&next->lock);
 
         // We're back from the process
-        // ktprintf("[SCHED] Returned from PID %llu\n", next->pid);
         
         spinlock_lock(&g_runqueue.lock);
         
@@ -602,11 +584,11 @@ resume_scheduler:
         // Check and update priority
         sched_check_interactive(se);
         sched_update_priority(se);
-
-
         
-        // Handle process state
-        switch (next->state) {
+        // Handle process state - CRITICAL: Check state BEFORE any operations
+        enum process_state current_state = next->state;
+        
+        switch (current_state) {
         case RUNNABLE:
             // Re-enqueue for next time
             sched_enqueue(&g_runqueue, next);
@@ -617,10 +599,8 @@ resume_scheduler:
             break;
             
         case EXITED:
-            // Clean up
+            // Clean up immediately - don't defer to idle
             ktprintf("[SCHED] Process %llu exited\n", next->pid);
-            
-            // if (get_installed_pagetable() == V2P(next->pagetable))
             
             vmm_free_proc_kernel_stack(next->orig_i);
             vmm_user_pagetable_free(next->pagetable);
@@ -632,11 +612,21 @@ resume_scheduler:
                 cpu_local()->last_running_process = NULL;
             
             kfree(next);
-            processes[next->i] = NULL;
-            coelesce_processes(next->i);
+            
+            // Update process table
+            size_t idx = next->i;
+            processes[idx] = NULL;
+            coelesce_processes(idx);
             break;
             
         default:
+            // Unexpected state - log and treat as runnable
+            ktprintf("[SCHED] WARNING: Process %llu in unexpected state %d\n", 
+                     next->pid, current_state);
+            if (current_state != RUNNING) {
+                next->state = RUNNABLE;
+                sched_enqueue(&g_runqueue, next);
+            }
             break;
         }
         

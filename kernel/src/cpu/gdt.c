@@ -204,6 +204,6 @@ void gdt_init(void)
  * Update TSS SP0 when switching processes
  * Called by scheduler before context switch to user
  */
-static inline void tss_set_kernel_stack(uint64_t stack_top) {
+void tss_set_kernel_stack(uint64_t stack_top) {
     tss.sp0 = stack_top;
 }

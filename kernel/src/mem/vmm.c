@@ -438,44 +438,47 @@ pagetable_t vmm_user_pagetable_new()
     if (copy_pagetable(pagetable, kernel_pagetable, 3) != 0)
         return NULL;
 
-	// Create dedicated pages
-	void *user_stack = NULL, *int_stack = NULL, *syscall_stack = NULL;
-	if ((user_stack = kcalloc()) == NULL)
-		goto failed;
-	if ((int_stack = kcalloc()) == NULL)
-		goto failed;
-	if ((syscall_stack = kcalloc()) == NULL)
-		goto failed;
+    // Create dedicated pages (contiguous to match mapped sizes)
+    void *user_stack = NULL, *int_stack = NULL, *syscall_stack = NULL;
+    size_t user_pages = USER_STACK_SIZE / PAGE_SIZE;
+    size_t int_pages = INTSTACK_SIZE / PAGE_SIZE;
+    size_t syscall_pages = SYSCALLSTACK_SIZE / PAGE_SIZE;
+    if ((user_stack = kalloc_pages(user_pages)) == NULL)
+        goto failed;
+    if ((int_stack = kalloc_pages(int_pages)) == NULL)
+        goto failed;
+    if ((syscall_stack = kalloc_pages(syscall_pages)) == NULL)
+        goto failed;
 
-	// Map pages
-	vmm_map_pages(
-	    pagetable, USER_STACK_BOTTOM, USER_STACK_SIZE, V2P(user_stack),
-	(pte_permissions) {
-		.writable = 1, .executable = 0, .userspace = 1
-	});
-	vmm_map_pages(
-	    pagetable, INTSTACK_VIRTUAL_ADDRESS_BOTTOM, INTSTACK_SIZE, V2P(int_stack),
-	(pte_permissions) {
-		.writable = 1, .executable = 0, .userspace = 0
-	});
-	vmm_map_pages(
-	    pagetable, SYSCALLSTACK_VIRTUAL_ADDRESS_BOTTOM, SYSCALLSTACK_SIZE,
-	    V2P(syscall_stack),
-	(pte_permissions) {
-		.writable = 1, .executable = 0, .userspace = 0
-	});
+    // Map pages
+    vmm_map_pages(
+        pagetable, USER_STACK_BOTTOM, USER_STACK_SIZE, V2P(user_stack),
+    (pte_permissions) {
+        .writable = 1, .executable = 0, .userspace = 1
+    });
+    vmm_map_pages(
+        pagetable, INTSTACK_VIRTUAL_ADDRESS_BOTTOM, INTSTACK_SIZE, V2P(int_stack),
+    (pte_permissions) {
+        .writable = 1, .executable = 0, .userspace = 0
+    });
+    vmm_map_pages(
+        pagetable, SYSCALLSTACK_VIRTUAL_ADDRESS_BOTTOM, SYSCALLSTACK_SIZE,
+        V2P(syscall_stack),
+    (pte_permissions) {
+        .writable = 1, .executable = 0, .userspace = 0
+    });
 
     // Done
     return pagetable;
 
 failed:
-	if (user_stack != NULL)
-		kfree(user_stack);
-	if (int_stack != NULL)
-		kfree(int_stack);
-	if (syscall_stack != NULL)
-		kfree(syscall_stack);
-	return NULL;
+    if (user_stack != NULL)
+        kfree_pages(user_stack, user_pages);
+    if (int_stack != NULL)
+        kfree_pages(int_stack, int_pages);
+    if (syscall_stack != NULL)
+        kfree_pages(syscall_stack, syscall_pages);
+    return NULL;
 }
 
 /**
@@ -494,8 +497,6 @@ static void vmm_user_pagetable_free_recursive(pagetable_t pagetable,
             const pte_t leaf_pte = pagetable[i];
             if (!pte_is_present(leaf_pte))
                 continue;
-            if (!pte_is_user(leaf_pte))
-                continue; // skip supervisor-only leaves
             uint64_t frame_pa = pte_follow(leaf_pte);
             if (phys_addr_valid(frame_pa))
                 kfree((void *)P2V(frame_pa));
@@ -510,8 +511,11 @@ static void vmm_user_pagetable_free_recursive(pagetable_t pagetable,
         const pte_t pte = pagetable[i];
         if (!pte_is_present(pte))
             continue;
-        // Only descend into user mappings; skip kernel-owned entries
-        if (!pte_is_user(pte))
+        // Compute range covered by this entry and restrict to userspace window
+        const uint64_t current_va_low = initial_va | (i << (level * 9 + 12));
+        const uint64_t current_va_high = initial_va | ((i + 1) << (level * 9 + 12));
+        if ((current_va_high >= USERSPACE_VA_MAX && current_va_low >= USERSPACE_VA_MAX) ||
+            (current_va_high < USERSPACE_VA_MIN && current_va_low < USERSPACE_VA_MIN))
             continue;
 
         // User mappings should never be huge; skip defensively if encountered
@@ -520,7 +524,7 @@ static void vmm_user_pagetable_free_recursive(pagetable_t pagetable,
         uint64_t child_pa = pte_follow(pte);
         if (!phys_addr_valid(child_pa)) { pagetable[i] = 0; continue; }
         pagetable_t child = (pagetable_t)P2V(child_pa);
-        vmm_user_pagetable_free_recursive(child, 0, level - 1);
+        vmm_user_pagetable_free_recursive(child, current_va_low, level - 1);
         pagetable[i] = 0;
     }
 
@@ -533,19 +537,7 @@ static void vmm_user_pagetable_free_recursive(pagetable_t pagetable,
  */
 void vmm_user_pagetable_free(pagetable_t pagetable)
 {
-	uint64_t stack = vmm_walkaddr(pagetable, USER_STACK_BOTTOM, false);
-	if (stack)
-		kfree((void *)P2V(stack));
-
-    stack = vmm_walkaddr(pagetable, INTSTACK_VIRTUAL_ADDRESS_BOTTOM, false);
-    if (stack)
-        kfree((void *)P2V(stack));
-
-    stack = vmm_walkaddr(pagetable, SYSCALLSTACK_VIRTUAL_ADDRESS_BOTTOM, false);
-    if (stack)
-        kfree((void *)P2V(stack));
-
-    // Recursively free all user mappings and frames
+    // Recursively free all lower-half (userspace) mappings and page tables
     vmm_user_pagetable_free_recursive(pagetable, 0, 3);
 }
 

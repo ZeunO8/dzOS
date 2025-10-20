@@ -12,6 +12,7 @@
 #include "cpu/smp.h"
 #include "cpu/fpu.h"
 #include "common/power.h"
+#include "cpu/gdt.h"
 
 // Helper macro for container_of
 #ifndef container_of

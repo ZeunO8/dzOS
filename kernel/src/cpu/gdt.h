@@ -10,7 +10,9 @@
 #define IST_DEBUG_STACK_INDEX         4
 
 #ifndef __ASSEMBLER__
+#include <stdint.h>
 void gdt_init(void);
 void tss_init_and_load(void);
 void kprint_gdt_init_string(void);
+void tss_set_kernel_stack(uint64_t stack_top);
 #endif

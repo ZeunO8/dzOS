@@ -14,10 +14,16 @@
 
 /* HHDM offset used by Limine. Defined in mem.c */
 extern volatile uint64_t hhdm_offset;
+extern volatile uint64_t phys_max_end;
 
 /* Convert virtual <-> physical based on current HHDM offset */
 #define V2P(ptr) ((uint64_t)((uintptr_t)(ptr) - (uintptr_t)(hhdm_offset)))
 #define P2V(ptr) ((void *)((uintptr_t)(ptr) + (uintptr_t)(hhdm_offset)))
+
+static inline bool phys_addr_valid(uint64_t pa)
+{
+    return pa < phys_max_end && (pa % PAGE_SIZE) == 0;
+}
 
 #ifdef __cplusplus
 extern "C" {

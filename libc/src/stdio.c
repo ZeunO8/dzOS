@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 
-static const char *digits = "0123456789abcdef";
+static const char *io_digits = "0123456789abcdef";
 
 static void print_char(int fd, char c)
 {
@@ -17,7 +17,6 @@ static void print_char(int fd, char c)
 void print_int(int fd, long long xx, int base, int sign)
 {
   char buf[64];
-  int i;
   unsigned long long x;
 
   if (sign && (sign = (xx < 0)))
@@ -25,9 +24,15 @@ void print_int(int fd, long long xx, int base, int sign)
   else
     x = xx;
 
-  i = 0;
+    // this prints ':' (10)
+          // char ci = '0'+base;
+          // write(DEFAULT_STDOUT, &ci, 1);
+  int i = 0;
+  // char k = io_digits[0]; // Is breaking here!!
+  //         ci = k; 
+  //         write(DEFAULT_STDOUT, &ci, 1); // this never prints
   do {
-    buf[i++] = digits[x % base];
+    buf[i++] = io_digits[x % base]; // this commented code is the original which works in kernelspace 
   } while ((x /= base) != 0);
 
   if (sign)
@@ -50,7 +55,7 @@ void print_int_padded(int fd, long long xx, int base, int sign, int width, char 
 
   i = 0;
   do {
-    buf[i++] = digits[x % base];
+    buf[i++] = io_digits[x % base];
   } while ((x /= base) != 0);
 
   if (sign)
@@ -96,7 +101,7 @@ static void sprint_int(char **str, const char *str_end, long long xx, int base,
 
   i = 0;
   do {
-    buf[i++] = digits[x % base];
+    buf[i++] = io_digits[x % base];
   } while ((x /= base) != 0);
 
   i = i > padding ? i : padding;
@@ -114,7 +119,7 @@ static void print_ptr(int fd, uint64_t x) {
   print_char(fd, '0');
   print_char(fd, 'x');
   for (size_t i = 0; i < (sizeof(uint64_t) * 2); i++, x <<= 4)
-    print_char(fd, digits[x >> (sizeof(uint64_t) * 8 - 4)]);
+    print_char(fd, io_digits[x >> (sizeof(uint64_t) * 8 - 4)]);
 }
 
 void prints(int fd, char* s)
@@ -139,7 +144,7 @@ static void sprint_ptr(char **str, const char *str_end, uint64_t x) {
   // Print the rest in hex
   for (size_t i = 0; i < (sizeof(uint64_t) * 2) && *str != str_end;
        i++, x <<= 4) {
-    **str = digits[x >> (sizeof(uint64_t) * 8 - 4)];
+    **str = io_digits[x >> (sizeof(uint64_t) * 8 - 4)];
     (*str)++;
   }
 }
@@ -178,7 +183,7 @@ void vfprintf(int fd, const char *fmt, va_list ap) {
           pad = '0';
           i++;
         }
-        width = parse_width(fmt, &i);
+        // width = parse_width(fmt, &i);
         
         c0 = fmt[i] & 0xff;
         c1 = 0;
@@ -432,8 +437,8 @@ void putchar(char c) { write(DEFAULT_STDOUT, &c, 1); }
 void hexdump(const char *buf, size_t size) {
   for (size_t i = 0; i < size; i++) {
     uint8_t data = buf[i];
-    putchar(digits[(data >> 4) & 0xF]);
-    putchar(digits[data & 0xF]);
+    putchar(io_digits[(data >> 4) & 0xF]);
+    putchar(io_digits[data & 0xF]);
   }
   putchar('\n');
 }

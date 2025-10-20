@@ -1,7 +1,7 @@
 #include "stdlib.h"
 #include "usyscalls.h"
 
-void _start(int argc, char *argv[]) {
+void _start(int argc, char** argv) {
   extern int main(int argc, char *argv[]);
   exit(main(argc, argv));
 }

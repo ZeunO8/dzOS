@@ -37,7 +37,8 @@ uint64_t syscall_c(uint64_t a1, uint64_t a2, uint64_t a3,
 {
     switch (syscall_number)
     {
-    #define GEN_SYS_0U(RET, NAME, U) case SYSCALL_##U: { (uint64_t)sys_##NAME(); return 0; }
+    // 0-arg syscalls must return their value (e.g., time())
+    #define GEN_SYS_0U(RET, NAME, U) case SYSCALL_##U: return (uint64_t)sys_##NAME()
     #define GEN_SYS_1U(RET, NAME, U, ARG1) case SYSCALL_##U: return (uint64_t)sys_##NAME((ARG1)a1)
     #define GEN_SYS_FN1(RET, NAME, U, FN, ARG1) case SYSCALL_##U: { FN((ARG1)a1); return 0; }
     #define GEN_SYS_RFN2a1b(RET, NAME, U, FN, ARG1, ARG2, ARG3, BLK3) case SYSCALL_##U: return (uint64_t)FN((ARG1)a1, (ARG2)a2, BLK3)

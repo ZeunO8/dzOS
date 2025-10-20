@@ -87,18 +87,24 @@ static int load_segment(pagetable_t pagetable, struct fs_inode *ip, uint64_t va,
      * cannot write to that data. Instead, we can write to the physical address of
      * the frame and that works just fine.
      */
-    for (uint32_t i = 0; i < sz; i += PAGE_SIZE)
+    for (uint32_t i = 0; i < sz; )
     {
-        uint64_t physical_address = vmm_walkaddr(pagetable, va + i, true);
+        uint64_t current_va = va + i;
+        uint64_t physical_address = vmm_walkaddr(pagetable, current_va, true);
         if (physical_address == 0)
             panic("load_segment: address should exist");
-        uint64_t n;
-        if (sz - i < PAGE_SIZE)
-            n = sz - i;
-        else
-            n = PAGE_SIZE;
-        if (fs_read(ip, (char *)P2V(physical_address), n, offset + i) != (int)n)
+        // Handle non-page-aligned virtual addresses by computing the
+        // offset within the current page and copying only up to the end
+        // of this page (or remaining bytes), whichever is smaller.
+        uint64_t page_off = current_va & (PAGE_SIZE - 1);
+        uint64_t n_page = PAGE_SIZE - page_off;
+        uint64_t remaining = sz - i;
+        uint64_t n = (remaining < n_page) ? remaining : n_page;
+
+        if (fs_read(ip, (char *)P2V(physical_address) + page_off, n, offset + i) != (int)n)
             return -1;
+
+        i += n;
     }
     return 0;
 }

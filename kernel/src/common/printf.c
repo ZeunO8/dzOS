@@ -8,7 +8,7 @@
 
 static struct spinlock print_lock;
 
-static const char *digits = "0123456789abcdef";
+static const char *pf_digits = "0123456789abcdef";
 
 static enum output_mode current_output = OUTPUT_SERIAL;
 
@@ -68,7 +68,7 @@ void kprintint(long long xx, int base, int sign)
 
   i = 0;
   do {
-    buf[i++] = digits[x % base];
+    buf[i++] = pf_digits[x % base];
   } while ((x /= base) != 0);
 
   if (sign)
@@ -96,7 +96,7 @@ void kprintint_padded(long long xx, int base, int sign, int width, char pad)
 
   i = 0;
   do {
-    buf[i++] = digits[x % base];
+    buf[i++] = pf_digits[x % base];
   } while ((x /= base) != 0);
 
   if (sign)
@@ -120,7 +120,7 @@ void kprintptr(uint64_t x)
   kputc('0');
   kputc('x');
   for (size_t i = 0; i < (sizeof(uint64_t) * 2); i++, x <<= 4)
-    kputc(digits[x >> (sizeof(uint64_t) * 8 - 4)]);
+    kputc(pf_digits[x >> (sizeof(uint64_t) * 8 - 4)]);
 
   if (print_colored)
     kprints(COLOR_RESET);
@@ -171,7 +171,7 @@ int cprintint(char* dest, int* rem, long long xx, int base, int sign)
 
   i = 0;
   do {
-    buf[i++] = digits[x % base];
+    buf[i++] = pf_digits[x % base];
   } while ((x /= base) != 0);
 
   if (sign)
@@ -207,7 +207,7 @@ int cprintint_padded(char* dest, int* rem, long long xx, int base, int sign, int
 
   i = 0;
   do {
-    buf[i++] = digits[x % base];
+    buf[i++] = pf_digits[x % base];
   } while ((x /= base) != 0);
 
   if (sign)
@@ -238,7 +238,7 @@ int cprintptr(char* dest, int* rem, uint64_t x)
   len += cputc(dest++, rem, '0');
   len += cputc(dest++, rem, 'x');
   for (size_t i = 0; i < (sizeof(uint64_t) * 2); i++, x <<= 4)
-    len += cputc(dest++, rem, digits[x >> (sizeof(uint64_t) * 8 - 4)]);
+    len += cputc(dest++, rem, pf_digits[x >> (sizeof(uint64_t) * 8 - 4)]);
   if (print_colored) {
     tlen = cprintf(dest, rem, COLOR_RESET);
     dest += tlen;
@@ -643,8 +643,8 @@ void khexdump(const char *buf, size_t size)
   for (size_t i = 0; i < size; i++)
   {
     uint8_t data = buf[i];
-    kputc(digits[(data >> 4) & 0xF]);
-    kputc(digits[data & 0xF]);
+    kputc(pf_digits[(data >> 4) & 0xF]);
+    kputc(pf_digits[data & 0xF]);
   }
   kputc('\n');
 }
@@ -663,8 +663,8 @@ int chexdump(char* dest, int* rem, const char *buf, size_t size)
   for (size_t i = 0; i < size; i++)
   {
     uint8_t data = buf[i];
-    len += cputc(dest++, rem, digits[(data >> 4) & 0xF]);
-    len += cputc(dest++, rem, digits[data & 0xF]);
+    len += cputc(dest++, rem, pf_digits[(data >> 4) & 0xF]);
+    len += cputc(dest++, rem, pf_digits[data & 0xF]);
   }
   len += cputc(dest++, rem, '\n');
   return len;

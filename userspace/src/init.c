@@ -3,7 +3,7 @@
 #include <usyscalls.h>
 #include <stdint.h>
 
-int main() {
+int main(int argc, char** argv) {
     int i = 737;
     int j = 2;
     uint64_t start = time();
@@ -12,12 +12,11 @@ int main() {
     WRITE("Okay\n"); // prints
     printf("Pre loop /init\n"); // prints
 
-    for (; i < 739120210; i++) {
+    for (; i < 239120210; i++) {
         j *= 2;
-        if ((i % 10000000) == 0) {
+        if ((i % 80000000) == 0) {
             uint64_t now = time();
-            int nowi = now / 1000;
-            printf("now (%i)\n", nowi); // crashes in stdio
+            printf("now (%llu)\n", now); // crashes in stdio
         }
     }
 

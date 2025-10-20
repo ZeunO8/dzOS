@@ -6,6 +6,8 @@
 
 /* HHDM offset */
 volatile uint64_t hhdm_offset;
+/* Maximum physical address end (one past the last byte) observed in memmap */
+volatile uint64_t phys_max_end = 0;
 
 /* Free page node used for free list (freed pages land here) */
 struct freepage_t {
@@ -114,9 +116,9 @@ void init_mem(uint64_t hhdm_offset_local,
 
 	ktprintf("Memory Map Analysis:\n");
 
-	for (uint64_t i = 0; i < memory_map->entry_count; ++i) {
-		const struct limine_memmap_entry *entry = memory_map->entries[i];
-		if (!entry) continue;
+    for (uint64_t i = 0; i < memory_map->entry_count; ++i) {
+        const struct limine_memmap_entry *entry = memory_map->entries[i];
+        if (!entry) continue;
 
 		/* Log all memory regions for debugging */
 		const char *type_str = "UNKNOWN";
@@ -135,8 +137,12 @@ void init_mem(uint64_t hhdm_offset_local,
 		         i, entry->base, entry->base + entry->length,
 		         entry->length / 1024, type_str);
 
-		/* Only process usable memory */
-		if (entry->type != LIMINE_MEMMAP_USABLE) continue;
+        /* Track max physical address end for validation */
+        if (entry->base + entry->length > phys_max_end)
+            phys_max_end = entry->base + entry->length;
+
+        /* Only process usable memory */
+        if (entry->type != LIMINE_MEMMAP_USABLE) continue;
 
 		uintptr_t base = (uintptr_t)entry->base;
 		uintptr_t length = (uintptr_t)entry->length;

@@ -59,6 +59,15 @@
 
 
 #ifndef __ASSEMBLER__
+/* Compile-time invariants for stack layout and sizes */
+_Static_assert((USER_STACK_SIZE % PAGE_SIZE) == 0, "USER_STACK_SIZE must be page aligned");
+_Static_assert((INTSTACK_SIZE % PAGE_SIZE) == 0, "INTSTACK_SIZE must be page aligned");
+_Static_assert((SYSCALLSTACK_SIZE % PAGE_SIZE) == 0, "SYSCALLSTACK_SIZE must be page aligned");
+
+_Static_assert(USER_STACK_TOP == USERSPACE_VA_MAX, "USER_STACK_TOP must equal USERSPACE_VA_MAX");
+_Static_assert(INTSTACK_VIRTUAL_ADDRESS_TOP == USER_STACK_BOTTOM, "INTSTACK top must equal USER stack bottom");
+_Static_assert(SYSCALLSTACK_VIRTUAL_ADDRESS_TOP == INTSTACK_VIRTUAL_ADDRESS_BOTTOM, "SYSCALL stack top must equal INT stack bottom");
+_Static_assert(SYSCALLSTACK_VIRTUAL_ADDRESS_BOTTOM >= USERSPACE_VA_MIN, "Stacks must remain within userspace VA window");
 
 /* PTE bit definitions (Intel x86-64 format) */
 #define PTE_P       (1ULL << 0)   // Present

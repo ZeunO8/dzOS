@@ -8,8 +8,8 @@
 // ============================================================================
 
 #define SCHED_PRIORITY_LEVELS 8      // Number of priority queues
-#define SCHED_MIN_TIMESLICE_US 3000  // 1ms minimum timeslice
-#define SCHED_MAX_TIMESLICE_US 32000 // 10ms maximum timeslice
+#define SCHED_MIN_TIMESLICE_US 2000  // 1ms minimum timeslice
+#define SCHED_MAX_TIMESLICE_US 16000 // 10ms maximum timeslice
 #define SCHED_TIMER_FREQ_HZ 1000     // 1ms timer tick
 #define SCHED_INTERACTIVE_THRESHOLD 5000 // 5ms interactive detection
 
@@ -51,6 +51,8 @@ typedef struct sched_entity {
     // Queue management
     struct sched_entity *next;   // Next in priority queue
     struct sched_entity *prev;   // Previous in priority queue
+    uint8_t runqueue_prio;       // Priority bucket where it's enqueued
+    uint8_t in_runqueue;         // Non-zero if currently enqueued
 } sched_entity_t;
 
 // ============================================================================

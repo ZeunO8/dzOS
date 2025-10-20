@@ -360,8 +360,8 @@ uint64_t proc_exec(const char *path, const char *args[], struct fs_inode *workin
     // Set nice value (optional, -20 to +19)
     sched_nice(proc, 1);
     
-    // Mark as sleeping - scheduler will pick it up
-    proc->state = SLEEPING;
+    // Mark as newly created and make runnable
+    proc->state = USED;
     sched_wakeup(proc);
 
     return proc->pid;

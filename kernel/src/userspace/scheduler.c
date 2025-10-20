@@ -41,6 +41,8 @@ static void sched_enqueue(runqueue_t *rq, struct process *p) {
     // Add to tail of priority queue
     se->next = NULL;
     se->prev = rq->queue_tails[prio];
+    se->runqueue_prio = prio;
+    se->in_runqueue = 1;
     
     if (rq->queue_tails[prio]) {
         rq->queue_tails[prio]->next = se;
@@ -56,7 +58,8 @@ static void sched_enqueue(runqueue_t *rq, struct process *p) {
 
 static void sched_dequeue(runqueue_t *rq, struct process *p) {
     sched_entity_t *se = &p->sched;
-    uint8_t prio = se->dynamic_priority;
+    // Always use the recorded bucket to remove from the correct list
+    uint8_t prio = se->runqueue_prio;
     
     if (prio >= SCHED_PRIORITY_LEVELS)
         return;
@@ -73,6 +76,7 @@ static void sched_dequeue(runqueue_t *rq, struct process *p) {
         rq->queue_tails[prio] = se->prev;
     
     se->next = se->prev = NULL;
+    se->in_runqueue = 0;
     
     rq->queue_sizes[prio]--;
     rq->total_runnable--;
@@ -221,6 +225,10 @@ void sched_fork(struct process *p) {
     se->vruntime = g_runqueue.min_vruntime;
     
     se->last_timeslice = sched_compute_timeslice(se);
+
+    // Initialize FPU state image for this process to a valid baseline
+    // so that first fxrstor during context switch does not fault.
+    fpu_save((void *)p->additional_data.fpu_state);
 }
 
 void sched_sleep(struct process *p, void *wchan) {
@@ -250,7 +258,9 @@ void sched_sleep(struct process *p, void *wchan) {
 void sched_wakeup(struct process *p) {
     spinlock_lock(&g_runqueue.lock);
     
-    if (p->state != SLEEPING) {
+    // Allow initial wake of a freshly created process as well
+    // Accept wake for freshly created (USED) or sleeping tasks
+    if (p->state != SLEEPING && p->state != USED) {
         spinlock_unlock(&g_runqueue.lock);
         return;
     }
@@ -405,7 +415,8 @@ void coelesce_processes(size_t i)
   for (size_t j = i + 1; j < process_count; j++)
   {
     struct process** proc = &processes[j];
-    if (proc)
+    // Only coalesce when there is actually a process at slot j
+    if (*proc)
     {
       processes[j - 1] = *proc;
       (*proc)->i = j - 1;
@@ -456,7 +467,36 @@ void scheduler_start(void) {
             }
             
             // Wait for interrupt
-            ktprintf("Reached %i processes and not all complete, halting.", 0);
+            static int idle_debug_prints = 0;
+            if (idle_debug_prints < 8) {
+                ktprintf("Reached %u runnable; proc_count=%llu, halting.\n",
+                         g_runqueue.total_runnable, (unsigned long long)process_count);
+                for (int pr = 0; pr < SCHED_PRIORITY_LEVELS; pr++) {
+                    ktprintf("  q%u size=%u head=%s tail=%s\n", pr,
+                             g_runqueue.queue_sizes[pr],
+                             g_runqueue.queue_heads[pr] ? "Y" : "N",
+                             g_runqueue.queue_tails[pr] ? "Y" : "N");
+                }
+                for (size_t i = 0; i < process_count; i++) {
+                    if (processes[i]) {
+                        ktprintf("  slot %zu pid=%llu state=%u\n", i,
+                                 (unsigned long long)processes[i]->pid,
+                                 (unsigned)processes[i]->state);
+                    }
+                }
+                idle_debug_prints++;
+            }
+            // Opportunistic repair: if there are runnable processes with no list links, enqueue them
+            spinlock_lock(&g_runqueue.lock);
+            for (size_t i = 0; i < process_count; i++) {
+                if (processes[i] && processes[i]->state == RUNNABLE) {
+                    sched_entity_t *se = &processes[i]->sched;
+                    if (!se->in_runqueue && se->next == NULL && se->prev == NULL) {
+                        sched_enqueue(&g_runqueue, processes[i]);
+                    }
+                }
+            }
+            spinlock_unlock(&g_runqueue.lock);
             sti();
             __asm__ volatile("hlt");
             cli();
@@ -500,18 +540,21 @@ void scheduler_start(void) {
         // Prepare kernel context
         kernel_context.rsp = next->kernel_stack_top;
         kernel_context.kernel_rip = (uint64_t)&&resume_scheduler;
-        
-        // Switch to process address space
-        install_pagetable(V2P(next->pagetable));
-        vmm_flush_tlb();
-        
+
         // Context switch to user
         g_stats.total_switches++;
 
         condvar_lock(&next->lock);
+    
+        // Switch to process address space
+        install_pagetable(V2P(next->pagetable));
+        vmm_flush_tlb();
         context_switch_to_user(&next->ctx, &kernel_context);
         
 resume_scheduler:
+        install_pagetable(V2P(kernel_pagetable));
+        vmm_flush_tlb();
+
         condvar_unlock(&next->lock);
 
         // We're back from the process
@@ -527,6 +570,8 @@ resume_scheduler:
         // Check and update priority
         sched_check_interactive(se);
         sched_update_priority(se);
+
+
         
         // Handle process state
         switch (next->state) {
@@ -543,8 +588,7 @@ resume_scheduler:
             // Clean up
             ktprintf("[SCHED] Process %llu exited\n", next->pid);
             
-            if (get_installed_pagetable() == V2P(next->pagetable))
-                install_pagetable(V2P(kernel_pagetable));
+            // if (get_installed_pagetable() == V2P(next->pagetable))
             
             vmm_free_proc_kernel_stack(next->orig_i);
             vmm_user_pagetable_free(next->pagetable);
@@ -593,8 +637,8 @@ void sched_set_priority(struct process *p, uint8_t prio) {
     se->static_priority = prio;
     se->dynamic_priority = prio;
     
-    // Re-enqueue if runnable to update position
-    if (p->state == RUNNABLE) {
+    // Re-enqueue if runnable and currently enqueued to update position
+    if (p->state == RUNNABLE && p->sched.in_runqueue) {
         sched_dequeue(&g_runqueue, p);
         sched_enqueue(&g_runqueue, p);
     }
@@ -610,6 +654,11 @@ void sched_nice(struct process *p, int8_t nice) {
     
     p->sched.nice = nice;
     sched_update_priority(&p->sched);
+    // If runnable and enqueued, requeue to reflect new priority
+    if (p->state == RUNNABLE && p->sched.in_runqueue) {
+        sched_dequeue(&g_runqueue, p);
+        sched_enqueue(&g_runqueue, p);
+    }
     
     spinlock_unlock(&g_runqueue.lock);
 }

@@ -131,7 +131,7 @@ void proc_wakeup(void *waiting_channel, bool everyone) {
     condvar_lock(&processes[i]->lock);
     if (processes[i]->state == SLEEPING &&
         processes[i]->waiting_channel == waiting_channel) {
-      processes[i]->state = RUNNABLE;
+      // Enqueue back to runqueue and mark RUNNABLE
       sched_wakeup(processes[i]);
       // If we should wake up one thread only, then we are done
       done = !everyone;

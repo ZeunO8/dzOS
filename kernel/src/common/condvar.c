@@ -42,14 +42,12 @@ void condvar_wait(struct condvar *cond) {
   condvar_lock(&proc->lock);
   condvar_unlock(cond);
 
-  // Setup the sleep parameters
-  proc->state = SLEEPING;
-  proc->waiting_channel = &cond->lock;
-  // Switch back to the kernel
+  // Put the process to sleep and dequeue it from runqueue
+  sched_sleep(proc, &cond->lock);
+  // Switch back to the scheduler
   scheduler_switch_back(0);
 
-  // Done sleeping!
-  // NOTE: I'm not sure about this ordering. xv6 does it this way
+  // Done sleeping! Reacquire locks in the same order as we released
   condvar_unlock(&proc->lock);
   condvar_lock(cond);
 }

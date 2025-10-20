@@ -10,7 +10,7 @@
 #define SCHED_PRIORITY_LEVELS 8      // Number of priority queues
 #define SCHED_MIN_TIMESLICE_US 1000  // 1ms minimum timeslice
 #define SCHED_MAX_TIMESLICE_US 10000 // 10ms maximum timeslice
-#define SCHED_TIMER_FREQ_HZ 1000000     // 1ms timer tick
+#define SCHED_TIMER_FREQ_HZ 1000     // 1ms timer tick
 #define SCHED_INTERACTIVE_THRESHOLD 5000 // 5ms interactive detection
 
 // Priority ranges

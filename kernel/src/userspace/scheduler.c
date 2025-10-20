@@ -296,7 +296,7 @@ void scheduler_preempt(void) {
     if (!curr)
         return;
     
-    condvar_lock(&curr->lock);
+    // condvar_lock(&curr->lock);
     
     if (curr->state == RUNNING) {
         curr->state = RUNNABLE;
@@ -505,9 +505,13 @@ void scheduler_start(void) {
         
         // Context switch to user
         g_stats.total_switches++;
+
+        condvar_lock(&next->lock);
         context_switch_to_user(&next->ctx, &kernel_context);
         
 resume_scheduler:
+        condvar_unlock(&next->lock);
+
         // We're back from the process
         ktprintf("[SCHED] Returned from PID %llu\n", next->pid);
         

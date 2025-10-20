@@ -2,12 +2,13 @@
 #include <usyscalls.h>
 int main()
 {
-#define PRINT_THIS "Good/one from Userspace...\n"
-    write(1, PRINT_THIS, strlen(PRINT_THIS));
+#define PRINTF(STR) write(1, STR, strlen(STR))
     int i = 737;
     int j = 2;
-    for (; i < 739; i++) {
+    PRINTF("Pre loop /init\n");
+    for (; i < 739120210; i++) {
         j *= 2;
     }
+    PRINTF("Post loop /init\n");
     return 0;
 }

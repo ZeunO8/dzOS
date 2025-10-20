@@ -97,23 +97,24 @@ static union gdt_entry gdt_entries[] = {
 /**
  * The TSS entry
  */
-struct tss_entry
-{
-  uint32_t reserved1;
-  uint64_t sp0;
-  /**
-   * While I was reading the docs for Linux kernel, I realized that Linux
-   * uses sp2 as a scratch register in syscalls. We can also do something
-   * very similar with sp1 and sp2 because we do not use ring 1 nor 2.
-   */
-  uint64_t sp1;
-  uint64_t sp2;
-  uint64_t reserved2;
-  uint64_t ist[7];
-  uint32_t reserved3;
-  uint32_t reserved4;
-  uint16_t reserved5;
-  uint16_t io_bitmap_base;
+struct tss_entry {
+    uint32_t reserved1;
+    
+    // Stack pointers for privilege levels 0-2
+    uint64_t sp0;  // Kernel stack (CPL 0)
+    uint64_t sp1;  // Ring 1 (unused in x86-64)
+    uint64_t sp2;  // Ring 2 (unused in x86-64)
+    
+    uint64_t reserved2;
+    
+    // Interrupt Stack Table (IST)
+    // Used for critical interrupts that need separate stacks
+    uint64_t ist[7];
+    
+    uint32_t reserved3;
+    uint32_t reserved4;
+    uint16_t reserved5;
+    uint16_t io_bitmap_base;
 } __attribute__((packed));
 
 /**
@@ -132,11 +133,48 @@ extern void reload_segments(void *gdt); // defined in snippet.S
  */
 void tss_init_and_load(void)
 {
+  ktprintf("[TSS] Initializing Task State Segment\n");
+  
+  // Allocate stacks for IST entries
+  // IST[0] = Double Fault (already done in original code)
+  tss.ist[IST_DOUBLE_FAULT_STACK_INDEX - 1] = (uint64_t)kalloc() + PAGE_SIZE;
+  
+  // IST[1] = NMI (Non-Maskable Interrupt)
+  tss.ist[IST_NMI_STACK_INDEX - 1] = (uint64_t)kalloc() + PAGE_SIZE;
+  
+  // IST[2] = Machine Check Exception
+  tss.ist[IST_MACHINE_CHECK_STACK_INDEX - 1] = (uint64_t)kalloc() + PAGE_SIZE;
+  
+  // IST[3] = Debug/Breakpoint
+  tss.ist[IST_DEBUG_STACK_INDEX - 1] = (uint64_t)kalloc() + PAGE_SIZE;
+  
+  // SP0 will be updated per-process by scheduler
+  // This is the default kernel interrupt stack
   tss.sp0 = INTSTACK_VIRTUAL_ADDRESS_TOP;
+  
+  // SP1 and SP2 unused in long mode
+  tss.sp1 = 0;
+  tss.sp2 = 0;
+  
+  // IO bitmap at end of TSS (none used)
   tss.io_bitmap_base = 0xFFFF;
-  tss.ist[IST_DOUBLE_FAULT_STACK_INDEX - 1] = (uint64_t)kalloc();
+  
+  // Update GDT entry with TSS address
+  uint64_t tss_address = (uint64_t)&tss;
+  gdt_entries[GDT_TSS_SEGMENT / 8].normal.limit = sizeof(tss) - 1;
+  gdt_entries[GDT_TSS_SEGMENT / 8].normal.base_low = tss_address & 0xFFFF;
+  gdt_entries[GDT_TSS_SEGMENT / 8].normal.base_mid = (tss_address >> 16) & 0xFF;
+  gdt_entries[GDT_TSS_SEGMENT / 8].normal.base_hi = (tss_address >> 24) & 0xFF;
+  gdt_entries[GDT_TSS_SEGMENT / 8 + 1].sys_desc_upper.base_very_high = 
+      (tss_address >> 32) & 0xFFFFFFFF;
+  
+  // Load TSS into TR register
   __asm__ volatile("ltr %%ax" : : "a"((uint16_t)GDT_TSS_SEGMENT));
-  ktprintf("TSS initialized\n");
+  
+  ktprintf("[TSS] Loaded with SP0=0x%llx\n", tss.sp0);
+  ktprintf("[TSS] IST[%d] (Double Fault) = 0x%llx\n", 
+            IST_DOUBLE_FAULT_STACK_INDEX, 
+            tss.ist[IST_DOUBLE_FAULT_STACK_INDEX - 1]);
 }
 
 /**
@@ -160,4 +198,12 @@ void gdt_init(void)
   };
   reload_segments(&gdt);
   ktprintf("GDT initialized\n");
+}
+
+/**
+ * Update TSS SP0 when switching processes
+ * Called by scheduler before context switch to user
+ */
+static inline void tss_set_kernel_stack(uint64_t stack_top) {
+    tss.sp0 = stack_top;
 }

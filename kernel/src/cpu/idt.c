@@ -105,3 +105,45 @@ void interrupt_dispatch(uint64_t vector)
 
     lapic_send_eoi();
 }
+
+/**
+ * Set IDT gate with IST support for critical interrupts
+ */
+void idt_set_gate_with_ist(uint8_t vector, uint64_t handler, uint8_t ist, 
+                            uint8_t dpl, uint8_t type_attr)
+{
+    idt[vector].offset_low  = (uint16_t)(handler & 0xFFFF);
+    idt[vector].selector    = GDT_KERNEL_CODE_SEGMENT;
+    idt[vector].ist         = ist;  // IST index (1-7, or 0 for normal stack)
+    idt[vector].type_attr   = (uint8_t)((type_attr & 0xFF) | ((dpl & 0x3) << 5));
+    idt[vector].offset_mid  = (uint16_t)((handler >> 16) & 0xFFFF);
+    idt[vector].offset_high = (uint32_t)((handler >> 32) & 0xFFFFFFFF);
+    idt[vector].zero        = 0;
+}
+
+/**
+ * Initialize critical interrupt handlers with IST
+ */
+void idt_init_critical_handlers(void) {
+    // // Double fault uses IST[0] (separate stack)
+    // extern void isr_double_fault(void);
+    // idt_set_gate_with_ist(T_DBLFLT, (uint64_t)isr_double_fault, 
+    //                       IST_DOUBLE_FAULT_STACK_INDEX, 0, 0x8E);
+    
+    // // NMI uses IST[1]
+    // extern void isr_nmi(void);
+    // idt_set_gate_with_ist(T_NMI, (uint64_t)isr_nmi, 
+    //                       IST_NMI_STACK_INDEX, 0, 0x8E);
+    
+    // // Machine check uses IST[2]
+    // extern void isr_machine_check(void);
+    // idt_set_gate_with_ist(T_MCHK, (uint64_t)isr_machine_check, 
+    //                       IST_MACHINE_CHECK_STACK_INDEX, 0, 0x8E);
+    
+    // // Debug/Breakpoint uses IST[3]
+    // extern void isr_debug(void);
+    // idt_set_gate_with_ist(T_DEBUG, (uint64_t)isr_debug, 
+    //                       IST_DEBUG_STACK_INDEX, 0, 0x8E);
+    
+    // ktprintf("[IDT] Critical handlers installed with IST\n");
+}

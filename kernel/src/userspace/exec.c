@@ -338,8 +338,20 @@ uint64_t proc_exec(const char *path, const char *args[], struct fs_inode *workin
     if (!working_directory) panic("exec: NULL working directory");
     proc->working_directory = working_directory;
 
-    // Mark process runnable
-    proc->state = RUNNABLE;
+    
+    // Initialize scheduling entity
+    sched_fork(proc);
+
+    // Set priority (optional)
+    sched_set_priority(proc, PRIO_NORMAL_MIN);
+
+    // Set nice value (optional, -20 to +19)
+    sched_nice(proc, 1);
+    
+    // Mark as sleeping - scheduler will pick it up
+    proc->state = SLEEPING;
+    sched_wakeup(proc);
+
     return proc->pid;
 
 bad:

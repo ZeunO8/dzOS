@@ -16,7 +16,7 @@
  */
 static uint64_t kernel_stackpointer;
 
-static struct cpu_context kernel_context;
+struct cpu_context kernel_context;
 
 /**
  * Next PID to assign to a program
@@ -26,9 +26,9 @@ static uint64_t next_pid = 1;
 /**
  * List of processes in the system
  */
-static uint64_t process_count = 0;
-static uint64_t process_min_index = 0;
-static struct process* processes[MAX_PROCESSES];
+uint64_t process_count = 0;
+uint64_t process_min_index = 0;
+struct process* processes[MAX_PROCESSES];
 
 /**
  * Atomically get the next PID
@@ -132,6 +132,7 @@ void proc_wakeup(void *waiting_channel, bool everyone) {
     if (processes[i]->state == SLEEPING &&
         processes[i]->waiting_channel == waiting_channel) {
       processes[i]->state = RUNNABLE;
+      sched_wakeup(processes[i]);
       // If we should wake up one thread only, then we are done
       done = !everyone;
     }
@@ -293,7 +294,7 @@ void sys_sleep(uint64_t msec) {
 /**
  * Setup the scheduler by creating a process which runs as the very program
  */
-void scheduler_init(void) {
+void userspace_init(void) {
   const char *args[] = {"/init", NULL};
   // Run the program
   if (proc_exec("/init", args, NULL) == (uint64_t)-1)
@@ -319,114 +320,7 @@ void scheduler_switch_back(void) {
   context_switch_to_kernel(&kernel_context, &proc->ctx);
 }
 
-static void load_additional_data_if_needed(struct process *old,
-                                           const struct process *new) {
-  // In this case, we dont need to do anything. Everything is stored
-  // in the CPU states.
-  if (new == old)
-    return;
-  // It is important to load the gs base in the kernel gs base
-  // in order for it to be swapped with swapgs and be stored in
-  // the main gs base.
-  wrmsr(MSR_KERNEL_GS_BASE, new->additional_data.gs_base);
-  // Save the FPU state of the old process and load the new one
-  if (old != NULL) // this might happen at first program
-    fpu_save((void *)old->additional_data.fpu_state);
-  fpu_load((const void *)new->additional_data.fpu_state);
-}
-
 uint64_t process_kstack;
-
-void coelesce_processes(size_t i)
-{
-  uint64_t prev_count = process_count;
-  for (size_t j = i + 1; j < process_count; j++)
-  {
-    struct process** proc = &processes[j];
-    if (proc)
-    {
-      processes[j - 1] = *proc;
-      (*proc)->i = j - 1;
-      *proc = 0;
-    }
-    else
-      break;
-  }
-  if (process_min_index > i)
-    process_min_index = i;
-  --process_count;
-}
-
-/**
- * Scheduler the scheduler of the operating system.
- */
-void scheduler(void) {
-  ktprintf("Scheduler initiated\n");
-  for (;;) {
-    if (process_count == 0) {
-      system_shutdown();
-    }
-    for (size_t i = 0; i < process_count; i++) {
-      struct process* proc = processes[i];
-      if (!proc)
-        continue;
-      condvar_lock(&proc->lock);
-			if (proc->state == RUNNING) {
-				proc_check_stack_canary(proc);
-			}
-      switch (proc->state) {
-      case RUNNABLE:
-        proc->state = RUNNING; // which are runnable...
-        // load program values...
-        load_additional_data_if_needed(cpu_local()->last_running_process, proc);
-        // and make them running and when found...
-        cpu_local()->running_process = proc;
-        cpu_local()->last_running_process = proc;
-        wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)cpu_local());
-
-        ktprintf("About to step into process %i\n", proc->pid);
-
-        process_kstack = kernel_context.rsp = proc->kernel_stack_top;
-        kernel_context.kernel_rip = (uint64_t)&&resume_scheduler;
-        // switch to its memory space...
-        install_pagetable(V2P(proc->pagetable));
-        vmm_flush_tlb();
-        // and run it...
-        context_switch_to_user(&proc->ctx, &kernel_context);
-resume_scheduler:
-        ktprintf("switched back from process %i\n", proc->pid);
-        cpu_local()->running_process = NULL;
-        // until we return and we do everything again!
-        break;
-      case EXITED:
-        ktprintf("process %i EXITED\n", proc->pid);
-        // If the pagetable of this process is installed, unload it
-        if (get_installed_pagetable() == V2P(proc->pagetable))
-          install_pagetable(V2P(kernel_pagetable));
-        vmm_free_proc_kernel_stack(proc->orig_i);
-        // Free the memory of the process
-        vmm_user_pagetable_free(proc->pagetable);
-        proc->state = UNUSED;
-        proc->pid = 0; // do not give false positive in wait
-        proc->current_sbrk = 0;
-        proc->initial_data_segment = 0;
-        proc->pagetable = NULL;
-        memset(&proc->additional_data, 0, sizeof(proc->additional_data));
-        // On rare occasions, this might happen
-        if (cpu_local()->last_running_process == proc)
-          cpu_local()->last_running_process = NULL;
-        kfree(proc);
-        processes[i] = 0;
-        coelesce_processes(i);
-        break;
-      default:
-        break;
-      }
-      if (spinlock_locked(&proc->lock.lock))
-        condvar_unlock(&proc->lock);
-    }
-  }
-}
 
 void proc_init_stack_canary(struct process *proc)
 {

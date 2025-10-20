@@ -146,13 +146,11 @@ void kmain(void)
     
     // Memory initialization
     init_mem(hhdm_request.response->offset, memmap_request.response);
-    
     vmm_init_kernel(*kernel_address_request.response);
     kmalloc_init();
 
     // === EARLY DEVICE INITIALIZATION (RTC for timestamps) ===
     device_manager_early_init();
-
     km_test();
 
     idt_init();
@@ -161,12 +159,11 @@ void kmain(void)
     // Initialize interrupt controller
     ioapic_init(&rsdp_request);
     lapic_init();
+
+    idt_init_critical_handlers();
     
     // === FULL DRIVER SYSTEM INITIALIZATION ===
     device_manager_init();
-    
-    // Enable interrupts after all drivers are initialized
-    sti();
 
     device_t* serial_dev = device_find_by_name("serial");
     if (serial_dev && serial_dev->initialized) {
@@ -189,12 +186,12 @@ void kmain(void)
     fs_init();
 
     // Userspace initialization
-    scheduler_init();
+    userspace_init();
     init_syscall_table();
 
     enable_spinlocks(true);
 
-    scheduler();
+    scheduler_start();
 
     halt();
 

@@ -357,7 +357,7 @@ void register_rtc_driver(void) {
 }
 
 // Legacy compatibility
-static device_t *g_rtc_dev = NULL;
+device_t *g_rtc_dev = NULL;
 
 void rtc_set_global(device_t *dev) {
     g_rtc_dev = dev;

@@ -1,5 +1,6 @@
 // proc.h
 #pragma once
+#include "scheduler.h"
 #include "common/condvar.h"
 #include "fs/file.h"
 #include "mem/vmm.h"
@@ -131,6 +132,8 @@ struct process {
   enum process_state state;
 
   uint64_t stack_canary;
+
+  sched_entity_t sched;  // Scheduler metadata
 };
 
 struct process *my_process(void);
@@ -141,7 +144,7 @@ void proc_exit(int exit_code);
 int proc_wait(uint64_t pid);
 void *proc_sbrk(int64_t how_much);
 void sys_sleep(uint64_t msec);
-void scheduler_init(void);
+void userspace_init(void);
 void scheduler_switch_back(void);
 void scheduler(void);
 

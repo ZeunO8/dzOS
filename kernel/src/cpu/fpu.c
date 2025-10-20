@@ -1,4 +1,5 @@
 #include "fpu.h"
+#include "userspace/proc.h"
 
 #include <stdint.h>
 
@@ -15,5 +16,19 @@ void fpu_enable(void)
     __asm__ volatile("mov %0, %%cr4" :: "r"(cr4));
 
     __asm__ volatile("fninit");
+}
+
+void fpu_save_current(void)
+{
+    struct process *p = my_process();
+    if (p)
+        fpu_save((void *)p->additional_data.fpu_state);
+}
+
+void fpu_load_current(void)
+{
+    struct process *p = my_process();
+    if (p)
+        fpu_load((const void *)p->additional_data.fpu_state);
 }
 

@@ -14,7 +14,9 @@ int main(int argc, char** argv) {
     for (; i < 239120210; i++) {
         j *= 2;
         if ((i % 80000000) == 0) {
-            double now = (double)time();
+            uint64_t t = time();
+            printf("t(%llu)\n", t);
+            double now = (double)t;
             double start_ = (now - start) / 1000000.0; // seconds
             double diff = (now - last) / 1000000.0;     // seconds
             printf("now(%i):start(%lf s),diff(%lf s)\n", ++k, start_, diff);

@@ -138,7 +138,6 @@ context_switch_to_kernel:
     mov QWORD PTR [rsi + 0x60], rdx
     mov QWORD PTR [rsi + 0x68], rcx
     mov QWORD PTR [rsi + 0x70], rax
-    mov QWORD PTR [rsi + 0x78], rsp      # save user stack
 .restore_kernel:
 
     mov r13, rdi                        # r13 = pointer to kernel context struct

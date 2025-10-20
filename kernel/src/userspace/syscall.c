@@ -1,6 +1,7 @@
 #include "syscall.h"
 #include "cpu/gdt.h"
 #include "cpu/asm.h"
+#include "cpu/fpu.h"
 #include "common/printf.h"
 #include <zos/syscall.h>
 #include "device/rtc.h"
@@ -35,18 +36,25 @@ void init_syscall_table(void)
 uint64_t syscall_c(uint64_t a1, uint64_t a2, uint64_t a3,
                     uint64_t syscall_number)
 {
+    // Preserve user FPU/SSE state across kernel use of XMM/FP
+    struct process *p = my_process();
+    if (p) {
+        fpu_save((void *)p->additional_data.fpu_state);
+    }
+
+    uint64_t ret = 0;
     switch (syscall_number)
     {
-    // 0-arg syscalls must return their value (e.g., time())
-    #define GEN_SYS_0U(RET, NAME, U) case SYSCALL_##U: return (uint64_t)sys_##NAME()
-    #define GEN_SYS_1U(RET, NAME, U, ARG1) case SYSCALL_##U: return (uint64_t)sys_##NAME((ARG1)a1)
-    #define GEN_SYS_FN1(RET, NAME, U, FN, ARG1) case SYSCALL_##U: { FN((ARG1)a1); return 0; }
-    #define GEN_SYS_RFN2a1b(RET, NAME, U, FN, ARG1, ARG2, ARG3, BLK3) case SYSCALL_##U: return (uint64_t)FN((ARG1)a1, (ARG2)a2, BLK3)
-    #define GEN_SYS_1UV(RET, NAME, U, ARG1) case SYSCALL_##U: { sys_##NAME((ARG1)a1); return 0; }
-    #define GEN_SYS_2U(RET, NAME, U, ARG1, ARG2) case SYSCALL_##U: return (uint64_t)sys_##NAME((ARG1)a1, (ARG2)a2)
-    #define GEN_SYS_3U(RET, NAME, U, ARG1, ARG2, ARG3) case SYSCALL_##U: return (uint64_t)sys_##NAME((ARG1)a1, (ARG2)a2, (ARG3)a3)
-    #define GEN_SYS_FN(NAME, U, FN) case SYSCALL_##U: return FN()
-    #define GEN_SYS_RFN1(NAME, U, FN, RET, ARG1) case SYSCALL_##U: return (uint64_t)FN((ARG1)a1)
+    // Expand macros into assignments + break to ensure single exit below
+    #define GEN_SYS_0U(RET, NAME, U) case SYSCALL_##U: ret = (uint64_t)sys_##NAME(); break
+    #define GEN_SYS_1U(RET, NAME, U, ARG1) case SYSCALL_##U: ret = (uint64_t)sys_##NAME((ARG1)a1); break
+    #define GEN_SYS_FN1(RET, NAME, U, FN, ARG1) case SYSCALL_##U: FN((ARG1)a1); ret = 0; break
+    #define GEN_SYS_RFN2a1b(RET, NAME, U, FN, ARG1, ARG2, ARG3, BLK3) case SYSCALL_##U: ret = (uint64_t)FN((ARG1)a1, (ARG2)a2, BLK3); break
+    #define GEN_SYS_1UV(RET, NAME, U, ARG1) case SYSCALL_##U: sys_##NAME((ARG1)a1); ret = 0; break
+    #define GEN_SYS_2U(RET, NAME, U, ARG1, ARG2) case SYSCALL_##U: ret = (uint64_t)sys_##NAME((ARG1)a1, (ARG2)a2); break
+    #define GEN_SYS_3U(RET, NAME, U, ARG1, ARG2, ARG3) case SYSCALL_##U: ret = (uint64_t)sys_##NAME((ARG1)a1, (ARG2)a2, (ARG3)a3); break
+    #define GEN_SYS_FN(NAME, U, FN) case SYSCALL_##U: ret = FN(); break
+    #define GEN_SYS_RFN1(NAME, U, FN, RETT, ARG1) case SYSCALL_##U: ret = (uint64_t)FN((ARG1)a1); break
     #include <zos/syscall.inc>
     #undef GEN_SYS_0U
     #undef GEN_SYS_1U
@@ -57,6 +65,14 @@ uint64_t syscall_c(uint64_t a1, uint64_t a2, uint64_t a3,
     #undef GEN_SYS_3U
     #undef GEN_SYS_FN
     #undef GEN_SYS_RFN1
+    default:
+        ret = 0;
+        break;
     }
-    return 0;
+
+    // Restore user FPU/SSE state before returning to userspace
+    if (p) {
+        fpu_load((const void *)p->additional_data.fpu_state);
+    }
+    return ret;
 }

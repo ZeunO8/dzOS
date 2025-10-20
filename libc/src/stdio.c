@@ -163,6 +163,8 @@ static int parse_width(const char *fmt, int *idx)
   return width;
 }
 
+#define WRITEC(c) write(1, &c, 1)
+
 void vfprintf(int fd, const char *fmt, va_list ap) {
     int i, c0, c1, c2;
     char *s;

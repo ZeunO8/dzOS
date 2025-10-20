@@ -267,6 +267,8 @@ void sched_wakeup(struct process *p) {
     
     p->state = RUNNABLE;
     p->waiting_channel = NULL;
+    p->sched.next = NULL;
+    p->sched.prev = NULL;
     
     // Re-check priority on wakeup
     sched_update_priority(&p->sched);
@@ -336,6 +338,8 @@ void scheduler_yield(interrupt_frame_t* frame) {
 extern void isr_timer_stub(void);  // Defined in isr_stubs.S
 
 void sched_timer_handler(interrupt_frame_t* frame) {
+    // Preserve user FP/SIMD state across interrupt handling
+    fpu_save_current();
     // Update runqueue clock
     g_runqueue.clock = rtc_now();
     
@@ -344,6 +348,9 @@ void sched_timer_handler(interrupt_frame_t* frame) {
     
     // Call scheduler tick
     scheduler_tick(frame);
+
+    // Restore user FP/SIMD state before returning to user
+    fpu_load_current();
 }
 
 extern device_t* g_rtc_dev;
@@ -448,6 +455,42 @@ void scheduler_start(void) {
         
         // Check if we have any runnable processes
         if (g_runqueue.total_runnable == 0) {
+            // Attempt to rebuild runqueue from process table if any RUNNABLE tasks exist
+            for (size_t i = 0; i < process_count; i++) {
+                if (processes[i] && processes[i]->state == RUNNABLE) {
+                    if (!processes[i]->sched.in_runqueue) {
+                        processes[i]->sched.next = NULL;
+                        processes[i]->sched.prev = NULL;
+                        sched_enqueue(&g_runqueue, processes[i]);
+                    }
+                }
+            }
+            if (g_runqueue.total_runnable > 0) {
+                // We recovered runnable tasks; schedule immediately
+                spinlock_unlock(&g_runqueue.lock);
+                continue;
+            }
+
+            // No runnable tasks; reclaim any EXITED processes that weren't reclaimed
+            for (size_t i = 0; i < process_count; ) {
+                struct process* p = processes[i];
+                if (p && p->state == EXITED) {
+                    // Free resources and mark UNUSED
+                    ktprintf("[SCHED] (idle) reclaiming exited PID %llu\n", p->pid);
+                    vmm_free_proc_kernel_stack(p->orig_i);
+                    vmm_user_pagetable_free(p->pagetable);
+                    p->state = UNUSED;
+                    p->pid = 0;
+                    if (cpu_local()->last_running_process == p)
+                        cpu_local()->last_running_process = NULL;
+                    kfree(p);
+                    processes[i] = NULL;
+                    coelesce_processes(i);
+                    // Do not increment i; recheck this index after compaction
+                    continue;
+                }
+                i++;
+            }
             spinlock_unlock(&g_runqueue.lock);
             
             // No processes to run - idle
@@ -486,17 +529,6 @@ void scheduler_start(void) {
                 }
                 idle_debug_prints++;
             }
-            // Opportunistic repair: if there are runnable processes with no list links, enqueue them
-            spinlock_lock(&g_runqueue.lock);
-            for (size_t i = 0; i < process_count; i++) {
-                if (processes[i] && processes[i]->state == RUNNABLE) {
-                    sched_entity_t *se = &processes[i]->sched;
-                    if (!se->in_runqueue && se->next == NULL && se->prev == NULL) {
-                        sched_enqueue(&g_runqueue, processes[i]);
-                    }
-                }
-            }
-            spinlock_unlock(&g_runqueue.lock);
             sti();
             __asm__ volatile("hlt");
             cli();

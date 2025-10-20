@@ -35,7 +35,7 @@
  * space to store the interrupt stack. Interrupt stack is one page only.
  */
 #define INTSTACK_SIZE 0x8000
-#define INTSTACK_VIRTUAL_ADDRESS_TOP USER_STACK_BOTTOM
+#define INTSTACK_VIRTUAL_ADDRESS_TOP (USER_STACK_BOTTOM - PAGE_SIZE) /* guard page below user stack */
 #define INTSTACK_VIRTUAL_ADDRESS_BOTTOM                                        \
   (INTSTACK_VIRTUAL_ADDRESS_TOP - INTSTACK_SIZE)
 
@@ -47,7 +47,7 @@
  * (This points to top of stack)
  */
 #define SYSCALLSTACK_SIZE 0x8000
-#define SYSCALLSTACK_VIRTUAL_ADDRESS_TOP INTSTACK_VIRTUAL_ADDRESS_BOTTOM
+#define SYSCALLSTACK_VIRTUAL_ADDRESS_TOP (INTSTACK_VIRTUAL_ADDRESS_BOTTOM - PAGE_SIZE) /* guard page below INT stack */
 #define SYSCALLSTACK_VIRTUAL_ADDRESS_BOTTOM                                    \
   (SYSCALLSTACK_VIRTUAL_ADDRESS_TOP - SYSCALLSTACK_SIZE)
 
@@ -65,8 +65,8 @@ _Static_assert((INTSTACK_SIZE % PAGE_SIZE) == 0, "INTSTACK_SIZE must be page ali
 _Static_assert((SYSCALLSTACK_SIZE % PAGE_SIZE) == 0, "SYSCALLSTACK_SIZE must be page aligned");
 
 _Static_assert(USER_STACK_TOP == USERSPACE_VA_MAX, "USER_STACK_TOP must equal USERSPACE_VA_MAX");
-_Static_assert(INTSTACK_VIRTUAL_ADDRESS_TOP == USER_STACK_BOTTOM, "INTSTACK top must equal USER stack bottom");
-_Static_assert(SYSCALLSTACK_VIRTUAL_ADDRESS_TOP == INTSTACK_VIRTUAL_ADDRESS_BOTTOM, "SYSCALL stack top must equal INT stack bottom");
+_Static_assert((USER_STACK_BOTTOM - INTSTACK_VIRTUAL_ADDRESS_TOP) == PAGE_SIZE, "Guard page between USER and INT stacks");
+_Static_assert((INTSTACK_VIRTUAL_ADDRESS_BOTTOM - SYSCALLSTACK_VIRTUAL_ADDRESS_TOP) == PAGE_SIZE, "Guard page between INT and SYSCALL stacks");
 _Static_assert(SYSCALLSTACK_VIRTUAL_ADDRESS_BOTTOM >= USERSPACE_VA_MIN, "Stacks must remain within userspace VA window");
 
 /* PTE bit definitions (Intel x86-64 format) */

@@ -51,6 +51,7 @@ typedef struct sched_entity {
     // Queue management
     struct sched_entity *next;   // Next in priority queue
     struct sched_entity *prev;   // Previous in priority queue
+
     uint8_t runqueue_prio;       // Priority bucket where it's enqueued
     uint8_t in_runqueue;         // Non-zero if currently enqueued
 } sched_entity_t;

@@ -90,16 +90,16 @@ isr_timer_stub:
     push r14
     push r15
     
-    # CRITICAL: Save FPU state BEFORE calling any C code
-    # The C handler may use XMM registers
-    call fpu_save_current
+    # CRITICAL: Save user FP/SIMD state BEFORE calling any C code
+    # Use per-CPU kernel scratch so we always restore, even if current process changes
+    call kernel_fpu_begin
     
     # Call scheduler timer handler with interrupt frame pointer
     mov rdi, rsp
     call sched_timer_handler
     
-    # CRITICAL: Restore FPU state AFTER C handler returns
-    call fpu_load_current
+    # CRITICAL: Restore user FP/SIMD state AFTER C handler returns
+    call kernel_fpu_end
     
     # Restore all GPRs
     pop r15

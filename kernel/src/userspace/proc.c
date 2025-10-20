@@ -6,6 +6,7 @@
 #include "cpu/asm.h"
 #include "cpu/fpu.h"
 #include "cpu/smp.h"
+#include "device/pic.h"
 #include "device/rtc.h"
 #include "fs/fs.h"
 #include "userspace/exec.h"

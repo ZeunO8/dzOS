@@ -50,6 +50,11 @@ struct cpu_local_data {
   // in memory if the running process is not equal to the last running
   // process.
   struct process *last_running_process;
+
+  // Scratch area to save kernel FPU/SIMD state during interrupts/syscalls
+  __attribute__((aligned(16))) uint8_t kernel_fpu_state[512];
+  // Nesting depth for kernel_fpu_begin/end pairs
+  int kernel_fpu_depth;
 };
 
 /**

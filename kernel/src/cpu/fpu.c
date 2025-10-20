@@ -1,5 +1,6 @@
 #include "fpu.h"
 #include "userspace/proc.h"
+#include "cpu/smp.h"
 
 #include <stdint.h>
 
@@ -32,3 +33,16 @@ void fpu_load_current(void)
         fpu_load((const void *)p->additional_data.fpu_state);
 }
 
+// Save/restore kernel FP/SIMD state around kernel code that may use XMM.
+// This avoids depending on my_process() which can change during preemption.
+void kernel_fpu_begin(void)
+{
+    struct cpu_local_data *cpu = cpu_local();
+    fpu_save((void *)cpu->kernel_fpu_state);
+}
+
+void kernel_fpu_end(void)
+{
+    struct cpu_local_data *cpu = cpu_local();
+    fpu_load((const void *)cpu->kernel_fpu_state);
+}

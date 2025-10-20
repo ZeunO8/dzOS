@@ -17,3 +17,6 @@ void fpu_load(const void *);
 // Save/restore current process FP state (helper for asm)
 void fpu_save_current(void);
 void fpu_load_current(void);
+// Save/restore kernel FP state on interrupt/syscall entry/exit
+void kernel_fpu_begin(void);
+void kernel_fpu_end(void);

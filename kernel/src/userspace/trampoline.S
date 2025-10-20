@@ -35,9 +35,9 @@ syscall_handler_asm:
     # Save user RSP to another callee-saved reg
     push r10                    # user RSP
 
-    # ---- Save FPU state ----
-    # Call C helper - this may clobber caller-saved regs but NOT r12-r15,rbx,rbp
-    call fpu_save_current
+    # ---- Save user FP/SIMD state ----
+    # Use per-CPU kernel scratch to preserve user state across kernel handling
+    call kernel_fpu_begin
 
     # ---- Restore arguments from callee-saved regs ----
     pop r10                     # restore user RSP
@@ -62,7 +62,7 @@ syscall_handler_asm:
     # ---- Restore for SYSRET ----
     # Restore user FP/SIMD state before returning (preserve rax)
     mov r15, rax                # save return value
-    call fpu_load_current
+    call kernel_fpu_end
     mov rax, r15                # restore return value
 
     # Pop minimal return context (preserve rax = syscall return value)

@@ -156,11 +156,13 @@ static int parse_width(const char *fmt, int *idx)
   return width;
 }
 
-// Print to a file descriptor
 void vfprintf(int fd, const char *fmt, va_list ap) {
-    int i, cx, c0, c1, c2; char *s;
-    for (i = 0; (cx = fmt[i] & 0xff) != 0; i++)
+    int i, c0, c1, c2;
+    char *s;
+    
+    for (i = 0; fmt[i] != 0; i++)
     {
+        int cx = fmt[i] & 0xff;
         if (cx != '%')
         {
           print_char(fd, cx);
@@ -178,68 +180,97 @@ void vfprintf(int fd, const char *fmt, va_list ap) {
         }
         width = parse_width(fmt, &i);
         
-        c0 = fmt[i + 0] & 0xff; c1 = c2 = 0;
+        c0 = fmt[i] & 0xff;
+        c1 = 0;
+        c2 = 0;
         if (c0) c1 = fmt[i + 1] & 0xff;
         if (c1) c2 = fmt[i + 2] & 0xff;
-        
-        if (c0 == 'd')
-          print_int(fd, va_arg(ap, int), 10, 1);
+
+        if (c0 == 'i')
+        {
+          int val = va_arg(ap, int);
+          print_int(fd, val, 10, 1);  // signed
+        }
+        else if (c0 == 'd')
+        {
+          int val = va_arg(ap, int);
+          print_int(fd, val, 10, 1);  // signed
+        }
+        else if (c0 == 'u')
+        {
+          unsigned int val = va_arg(ap, unsigned int);
+          print_int(fd, val, 10, 0);  // unsigned
+        }
         else if (c0 == 'l' && c1 == 'd')
         {
-          print_int(fd, va_arg(ap, uint64_t), 10, 1);
+          long val = va_arg(ap, long);
+          print_int(fd, val, 10, 1);
           i += 1;
         }
         else if (c0 == 'l' && c1 == 'l' && c2 == 'd')
         {
-          print_int(fd, va_arg(ap, uint64_t), 10, 1);
+          long long val = va_arg(ap, long long);
+          print_int(fd, val, 10, 1);
           i += 2;
         }
-        else if (c0 == 'u' || c0 == 'i')
-          print_int(fd, va_arg(ap, int), 10, 0);
         else if (c0 == 'l' && c1 == 'u')
         {
-          print_int(fd, va_arg(ap, uint64_t), 10, 0);
+          unsigned long val = va_arg(ap, unsigned long);
+          print_int(fd, val, 10, 0);
           i += 1;
         }
         else if (c0 == 'l' && c1 == 'l' && c2 == 'u')
         {
-          print_int(fd, va_arg(ap, uint64_t), 10, 0);
+          unsigned long long val = va_arg(ap, unsigned long long);
+          print_int(fd, val, 10, 0);
           i += 2;
         }
         else if (c0 == 'z' && c1 == 'u')
         {
-          print_int(fd, va_arg(ap, size_t), 10, 0);
+          size_t val = va_arg(ap, size_t);
+          print_int(fd, val, 10, 0);
           i += 1;
         }
         else if (c0 == 'x')
         {
+          unsigned int val = va_arg(ap, unsigned int);
           if (width > 0)
-            print_int_padded(fd, va_arg(ap, int), 16, 0, width, pad);
+            print_int_padded(fd, val, 16, 0, width, pad);
           else
-            print_int(fd, va_arg(ap, int), 16, 0);
+            print_int(fd, val, 16, 0);
         }
         else if (c0 == 'l' && c1 == 'x')
         {
+          unsigned long val = va_arg(ap, unsigned long);
           if (width > 0)
-            print_int_padded(fd, va_arg(ap, uint64_t), 16, 0, width, pad);
+            print_int_padded(fd, val, 16, 0, width, pad);
           else
-            print_int(fd, va_arg(ap, uint64_t), 16, 0);
+            print_int(fd, val, 16, 0);
           i += 1;
         }
         else if (c0 == 'l' && c1 == 'l' && c2 == 'x')
         {
+          unsigned long long val = va_arg(ap, unsigned long long);
           if (width > 0)
-            print_int_padded(fd, va_arg(ap, uint64_t), 16, 0, width, pad);
+            print_int_padded(fd, val, 16, 0, width, pad);
           else
-            print_int(fd, va_arg(ap, uint64_t), 16, 0);
+            print_int(fd, val, 16, 0);
           i += 2;
         }
         else if (c0 == 'p')
-          print_ptr(fd, va_arg(ap, uint64_t));
+        {
+          void* ptr = va_arg(ap, void*);
+          print_ptr(fd, (uint64_t)ptr);
+        }
         else if (c0 == 's')
         {
           s = va_arg(ap, char *);
           prints(fd, s);
+        }
+        else if (c0 == 'c')
+        {
+          int ch = va_arg(ap, int);
+          print_char(fd, (char)ch);
         }
         else if (c0 == 'f')
         {
@@ -258,7 +289,8 @@ void vfprintf(int fd, const char *fmt, va_list ap) {
           break;
         else
         {
-          print_char(fd, '%'); print_char(fd, c0);
+          print_char(fd, '%'); 
+          print_char(fd, c0);
         }
     }
 }
@@ -279,7 +311,7 @@ void printf(const char *fmt, ...) {
   va_end(ap);
 }
 
-// Print to a string buffer
+// Rest of the file remains the same...
 void vsnprintf(char *str, size_t size, const char *fmt, va_list ap_in) {
   if (!size) return;
   char *string_end = str + size - 1;
@@ -354,7 +386,7 @@ void vsnprintf(char *str, size_t size, const char *fmt, va_list ap_in) {
   }
 
   *str = '\0';
-  va_end(ap);  // end our copy ONLY
+  va_end(ap);
 }
 
 void snprintf(char *str, size_t size, const char *fmt, ...) {
@@ -378,19 +410,15 @@ char *gets(char *buf, int max) {
 
   for (i = 0; i + 1 < max;) {
     int cc = read(DEFAULT_STDIN, &c, 1);
-    if (cc < 1) // end of stream
+    if (cc < 1)
       break;
-    // Check for backspace
-    if (c == 127) { // DEL ASCII
-      if (i == 0)   // Do not allow backspace at the first of buffer
+    if (c == 127) {
+      if (i == 0)
         continue;
-      // Remove from buffer
       i--;
-      // Remove from console
       write(DEFAULT_STDOUT, "\b \b", 3);
       continue;
     }
-    // Write to buffer
     buf[i++] = c;
     if (c == '\n' || c == '\r')
       break;

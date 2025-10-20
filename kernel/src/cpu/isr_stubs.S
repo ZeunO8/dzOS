@@ -89,6 +89,7 @@ isr_timer_stub:
     push r14
     push r15
     
+    mov rdi, rsp
     call sched_timer_handler
     
     pop r15

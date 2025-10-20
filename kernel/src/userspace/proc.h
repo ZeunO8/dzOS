@@ -145,8 +145,6 @@ int proc_wait(uint64_t pid);
 void *proc_sbrk(int64_t how_much);
 void sys_sleep(uint64_t msec);
 void userspace_init(void);
-void scheduler_switch_back(void);
-void scheduler(void);
 
 void proc_init_stack_canary(struct process *proc);
 void proc_check_stack_canary(struct process *proc);

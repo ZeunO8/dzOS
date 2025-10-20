@@ -265,7 +265,7 @@ void sched_wakeup(struct process *p) {
     spinlock_unlock(&g_runqueue.lock);
 }
 
-void scheduler_tick(void) {
+void scheduler_tick(interrupt_frame_t* frame) {
     g_stats.total_timer_ticks++;
     
     struct process *curr = g_runqueue.curr;
@@ -287,11 +287,11 @@ void scheduler_tick(void) {
     if (runtime_this_slice >= se->last_timeslice) {
         // Time to preempt
         g_stats.total_preemptions++;
-        scheduler_preempt();
+        scheduler_preempt(frame);
     }
 }
 
-void scheduler_preempt(void) {
+void scheduler_preempt(interrupt_frame_t* frame) {
     struct process *curr = g_runqueue.curr;
     if (!curr)
         return;
@@ -303,10 +303,10 @@ void scheduler_preempt(void) {
     }
     
     // Will trigger reschedule
-    scheduler_switch_back();
+    scheduler_switch_back(frame);
 }
 
-void scheduler_yield(void) {
+void scheduler_yield(interrupt_frame_t* frame) {
     g_stats.total_yields++;
     
     struct process *curr = my_process();
@@ -315,7 +315,7 @@ void scheduler_yield(void) {
     
     condvar_lock(&curr->lock);
     curr->state = RUNNABLE;
-    scheduler_switch_back();
+    scheduler_switch_back(0);
 }
 
 // ============================================================================
@@ -324,15 +324,15 @@ void scheduler_yield(void) {
 
 extern void isr_timer_stub(void);  // Defined in isr_stubs.S
 
-void sched_timer_handler(void) {
+void sched_timer_handler(interrupt_frame_t* frame) {
     // Update runqueue clock
     g_runqueue.clock = rtc_now();
     
-    // Call scheduler tick
-    scheduler_tick();
-    
     // Send EOI
     lapic_send_eoi();
+    
+    // Call scheduler tick
+    scheduler_tick(frame);
 }
 
 extern device_t* g_rtc_dev;
@@ -380,7 +380,7 @@ extern uint64_t process_min_index;
 extern struct process* processes[MAX_PROCESSES];
 
 extern void context_switch_to_user(struct cpu_context *to_context, struct cpu_context *from_context);
-extern void context_switch_to_kernel(struct cpu_context *to_context, struct cpu_context *user_context);
+extern void context_switch_to_kernel(struct cpu_context *to_context, struct cpu_context *user_context, interrupt_frame_t* frame);
 
 
 void load_additional_data_if_needed(struct process *old, const struct process *new) {
@@ -455,6 +455,7 @@ void scheduler_start(void) {
             }
             
             // Wait for interrupt
+            ktprintf("Reached %i processes and not all complete, halting.", 0);
             sti();
             __asm__ volatile("hlt");
             cli();
@@ -492,8 +493,8 @@ void scheduler_start(void) {
         // Update GS base for current CPU
         wrmsr(MSR_KERNEL_GS_BASE, (uint64_t)cpu_local());
         
-        ktprintf("[SCHED] Running PID %llu (prio=%u, timeslice=%lluus)\n",
-                 next->pid, se->dynamic_priority, se->last_timeslice);
+        // ktprintf("[SCHED] Running PID %llu (prio=%u, timeslice=%lluus)\n",
+        //          next->pid, se->dynamic_priority, se->last_timeslice);
         
         // Prepare kernel context
         kernel_context.rsp = next->kernel_stack_top;
@@ -513,7 +514,7 @@ resume_scheduler:
         condvar_unlock(&next->lock);
 
         // We're back from the process
-        ktprintf("[SCHED] Returned from PID %llu\n", next->pid);
+        // ktprintf("[SCHED] Returned from PID %llu\n", next->pid);
         
         spinlock_lock(&g_runqueue.lock);
         

@@ -8,8 +8,8 @@
 // ============================================================================
 
 #define SCHED_PRIORITY_LEVELS 8      // Number of priority queues
-#define SCHED_MIN_TIMESLICE_US 1000  // 1ms minimum timeslice
-#define SCHED_MAX_TIMESLICE_US 10000 // 10ms maximum timeslice
+#define SCHED_MIN_TIMESLICE_US 3000  // 1ms minimum timeslice
+#define SCHED_MAX_TIMESLICE_US 32000 // 10ms maximum timeslice
 #define SCHED_TIMER_FREQ_HZ 1000     // 1ms timer tick
 #define SCHED_INTERACTIVE_THRESHOLD 5000 // 5ms interactive detection
 
@@ -101,10 +101,36 @@ typedef struct sched_stats {
 // SCHEDULER API
 // ============================================================================
 
+// Saved CPU state from interrupts (matches isr_timer_stub stack layout)
+typedef struct interrupt_frame {
+    uint64_t r15;
+    uint64_t r14;
+    uint64_t r13;
+    uint64_t r12;
+    uint64_t r11;
+    uint64_t r10;
+    uint64_t r9;
+    uint64_t r8;
+    uint64_t rbp;
+    uint64_t rdi;
+    uint64_t rsi;
+    uint64_t rdx;
+    uint64_t rcx;
+    uint64_t rbx;
+    uint64_t rax;
+    uint64_t vector;
+    uint64_t error_code;
+    uint64_t rip;
+    uint64_t cs;
+    uint64_t rflags;
+    uint64_t rsp;
+    uint64_t ss;
+} interrupt_frame_t;
+
 void scheduler_start(void);
-void scheduler_tick(void);           // Called by timer interrupt
-void scheduler_yield(void);          // Voluntary yield
-void scheduler_preempt(void);        // Forced preemption
+void scheduler_tick(interrupt_frame_t* frame);           // Called by timer interrupt
+void scheduler_yield(interrupt_frame_t* frame);          // Voluntary yield
+void scheduler_preempt(interrupt_frame_t* frame);        // Forced preemption
 
 // Process management
 void sched_fork(struct process *p);
@@ -160,4 +186,5 @@ static void sched_check_interactive(sched_entity_t *se);
 
 // Timer management
 void sched_timer_init(void);
-void sched_timer_handler(void);
+void sched_timer_handler(interrupt_frame_t* frame);
+void scheduler_switch_back(interrupt_frame_t* frame);

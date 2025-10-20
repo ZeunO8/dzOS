@@ -22,20 +22,22 @@
 /**
  * Where we should put the top of the stack in the virtual address space
  */
-#define USER_STACK_TOP (1ULL << 45)
+#define USER_STACK_TOP USERSPACE_VA_MAX
 
 /**
  * Where we should put the bottom of the stack in the virtual address space
  */
-#define USER_STACK_BOTTOM (USER_STACK_TOP - PAGE_SIZE)
+#define USER_STACK_SIZE 0x8000
+#define USER_STACK_BOTTOM (USER_STACK_TOP - USER_STACK_SIZE)
 
 /**
  * Interrupt stack virtual address. Used when userspace is switching to kernel
  * space to store the interrupt stack. Interrupt stack is one page only.
  */
-#define INTSTACK_VIRTUAL_ADDRESS_TOP USERSPACE_VA_MAX
+#define INTSTACK_SIZE 0x8000
+#define INTSTACK_VIRTUAL_ADDRESS_TOP USER_STACK_BOTTOM
 #define INTSTACK_VIRTUAL_ADDRESS_BOTTOM                                        \
-  (INTSTACK_VIRTUAL_ADDRESS_TOP - PAGE_SIZE)
+  (INTSTACK_VIRTUAL_ADDRESS_TOP - INTSTACK_SIZE)
 
 /**
  * The stack which we can use for syscall of user programs. The first values
@@ -44,9 +46,10 @@
  * View trampoline.S for more info.
  * (This points to top of stack)
  */
+#define SYSCALLSTACK_SIZE 0x8000
 #define SYSCALLSTACK_VIRTUAL_ADDRESS_TOP INTSTACK_VIRTUAL_ADDRESS_BOTTOM
 #define SYSCALLSTACK_VIRTUAL_ADDRESS_BOTTOM                                    \
-  (SYSCALLSTACK_VIRTUAL_ADDRESS_TOP - PAGE_SIZE)
+  (SYSCALLSTACK_VIRTUAL_ADDRESS_TOP - SYSCALLSTACK_SIZE)
 
 #define KERNEL_STACK_SIZE 0x4000
 #define KERNEL_STACK_GUARD_SIZE PAGE_SIZE

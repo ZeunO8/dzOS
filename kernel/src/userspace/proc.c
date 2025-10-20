@@ -39,7 +39,7 @@ static inline uint64_t get_next_pid(void) {
 
 extern void context_switch_to_user(struct cpu_context *to_context, struct cpu_context *from_context);
 
-extern void context_switch_to_kernel(struct cpu_context *to_context, struct cpu_context *user_context);
+extern void context_switch_to_kernel(struct cpu_context *to_context, struct cpu_context *user_context, interrupt_frame_t* frame);
 
 /**
  * Gets the current running process of this CPU core
@@ -190,7 +190,7 @@ void proc_exit(int exit_code) {
   // Set the status to the exited and return back
   proc->state = EXITED;
 
-  scheduler_switch_back();
+  scheduler_switch_back(0);
 }
 
 void sys_exit(int ec)
@@ -286,7 +286,7 @@ void sys_sleep(uint64_t msec) {
   condvar_lock(&my_process()->lock); // lock before switch back
   while (target_epoch_wakeup > rtc_now()) {
     proc->state = RUNNABLE;  // we can run this again
-    scheduler_switch_back(); // switch back to allow other processes to run
+    scheduler_switch_back(0); // switch back to allow other processes to run
   }
   condvar_unlock(&my_process()->lock);
 }
@@ -311,13 +311,13 @@ void userspace_init(void) {
  *
  * Before calling this function, the caller should old the my_process()->lock
  */
-void scheduler_switch_back(void) {
+void scheduler_switch_back(interrupt_frame_t* frame) {
   struct process *proc = my_process();
   if (!spinlock_locked(&proc->lock.lock))
     panic("scheduler_switch_back: not locked");
   if (proc->state == RUNNING)
     panic("scheduler_switch_back: RUNNING");
-  context_switch_to_kernel(&kernel_context, &proc->ctx);
+  context_switch_to_kernel(&kernel_context, &proc->ctx, frame);
 }
 
 uint64_t process_kstack;

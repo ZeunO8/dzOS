@@ -1,6 +1,7 @@
 #include "common/condvar.h"
 #include "common/printf.h"
 #include "userspace/proc.h"
+#include "userspace/scheduler.h"
 
 /**
  * Lock the lock inside this condvar.
@@ -45,7 +46,7 @@ void condvar_wait(struct condvar *cond) {
   proc->state = SLEEPING;
   proc->waiting_channel = &cond->lock;
   // Switch back to the kernel
-  scheduler_switch_back();
+  scheduler_switch_back(0);
 
   // Done sleeping!
   // NOTE: I'm not sure about this ordering. xv6 does it this way

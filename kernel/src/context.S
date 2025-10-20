@@ -76,9 +76,53 @@ context_switch_to_user:
     swapgs
     sysretq
 
+
 .global context_switch_to_kernel
 .type context_switch_to_kernel, @function
 context_switch_to_kernel:
+    test rdx, rdx
+    jz .save_from_regs
+
+    # Save user context from interrupt frame pointed by rdx
+    mov rax, QWORD PTR [rdx + 0x00]
+    mov QWORD PTR [rsi + 0x00], rax      # r15
+    mov rax, QWORD PTR [rdx + 0x08]
+    mov QWORD PTR [rsi + 0x08], rax      # r14
+    mov rax, QWORD PTR [rdx + 0x10]
+    mov QWORD PTR [rsi + 0x10], rax      # r13
+    mov rax, QWORD PTR [rdx + 0x18]
+    mov QWORD PTR [rsi + 0x18], rax      # r12
+    mov rax, QWORD PTR [rdx + 0x20]
+    mov QWORD PTR [rsi + 0x30], rax      # r11
+    mov rax, QWORD PTR [rdx + 0x28]
+    mov QWORD PTR [rsi + 0x38], rax      # r10
+    mov rax, QWORD PTR [rdx + 0x30]
+    mov QWORD PTR [rsi + 0x40], rax      # r9
+    mov rax, QWORD PTR [rdx + 0x38]
+    mov QWORD PTR [rsi + 0x48], rax      # r8
+    mov rax, QWORD PTR [rdx + 0x40]
+    mov QWORD PTR [rsi + 0x20], rax      # rbp
+    mov rax, QWORD PTR [rdx + 0x68]
+    mov QWORD PTR [rsi + 0x28], rax      # rbx
+    mov rax, QWORD PTR [rdx + 0x50]
+    mov QWORD PTR [rsi + 0x50], rax      # rsi
+    mov rax, QWORD PTR [rdx + 0x48]
+    mov QWORD PTR [rsi + 0x58], rax      # rdi
+    mov rax, QWORD PTR [rdx + 0x58]
+    mov QWORD PTR [rsi + 0x60], rax      # rdx
+    mov rax, QWORD PTR [rdx + 0x60]
+    mov QWORD PTR [rsi + 0x68], rax      # rcx
+    mov rax, QWORD PTR [rdx + 0x70]
+    mov QWORD PTR [rsi + 0x70], rax      # rax
+    mov rax, QWORD PTR [rdx + 0xA0]
+    mov QWORD PTR [rsi + 0x78], rax      # rsp
+    mov rax, QWORD PTR [rdx + 0x88]
+    mov QWORD PTR [rsi + 0x80], rax      # rip
+    mov rax, QWORD PTR [rdx + 0x98]
+    mov QWORD PTR [rsi + 0x88], rax      # rflags
+    jmp .restore_kernel
+
+.save_from_regs:
     mov QWORD PTR [rsi + 0x00], r15
     mov QWORD PTR [rsi + 0x08], r14
     mov QWORD PTR [rsi + 0x10], r13
@@ -95,6 +139,7 @@ context_switch_to_kernel:
     mov QWORD PTR [rsi + 0x68], rcx
     mov QWORD PTR [rsi + 0x70], rax
     mov QWORD PTR [rsi + 0x78], rsp      # save user stack
+.restore_kernel:
 
     mov r13, rdi                        # r13 = pointer to kernel context struct
 

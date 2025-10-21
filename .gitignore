@@ -1,5 +1,6 @@
 .vscode
 build
 build-windows
+build-codex
 serial.log
 xxd
